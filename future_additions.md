@@ -1,7 +1,7 @@
 # Future Additions Checklist
 
 ## Attack realism (senior level)
-- [ ] Multi-hop injection chain: web fixture -> summarizer -> memory -> planner -> tool, with obfuscated token variants (markdown tables, YAML blocks, base64, homoglyphs).
+- [x] Multi-hop injection chain: web fixture -> summarizer -> memory -> planner -> tool, with obfuscated token variants (markdown tables, YAML blocks, base64, homoglyphs). **COMPLETED** - See OBFUSCATION.md for details.
 - [ ] Confused deputy scenario: policy gate approves a benign action but planner swaps in a high-risk target via prompt injection.
 - [ ] Cross-tenant memory bleed: simulate two tenants with shared memory index; attacker poisons one and impacts the other.
 - [ ] Retrieval ambiguity attack: similar runbook entries with near-duplicate targets to show semantic drift in retrieval.
