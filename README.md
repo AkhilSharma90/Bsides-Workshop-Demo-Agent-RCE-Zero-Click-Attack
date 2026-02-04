@@ -1,6 +1,8 @@
-# BSides SF CrewAI Demo: Memory Poisoning + Authority Propagation
+# Zero-Click RCE in AI Agents: Memory Poisoning Attack & Defense
 
-This project is a **safe, multi-agent** demo that shows how untrusted content can be ingested, incorrectly trusted, and then used to trigger a privileged tool call — **without any human approval** (zero-click). It uses real LLM calls across multiple providers to make the chain feel like a real CrewAI run.
+## BSides SF Workshop Demo
+
+This project demonstrates **zero-click remote code execution** in multi-agent AI systems through memory poisoning and trust elevation vulnerabilities. Untrusted web content is automatically ingested, incorrectly trusted, and used to trigger privileged tool execution — **without any human approval**. This demo uses real LLM calls (OpenAI, Anthropic) to simulate production AI agent behavior.
 
 ## What this demo shows
 
