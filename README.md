@@ -88,6 +88,39 @@ python -m demo reset --confirm
 python -m demo run --fixture clean
 ```
 
+### Obfuscation Attack Variants
+
+The demo now includes multiple obfuscation techniques that demonstrate evasion of simple string-based defenses:
+
+```bash
+# Markdown table obfuscation (token hidden in table cell)
+python -m demo run --fixture markdown_table
+
+# YAML block obfuscation (token in structured config)
+python -m demo run --fixture yaml
+
+# Base64 encoding obfuscation
+python -m demo run --fixture base64
+
+# Homoglyph obfuscation (Unicode lookalikes)
+python -m demo run --fixture homoglyph
+```
+
+### Run All Obfuscation Tests
+
+To test all obfuscation variants at once and generate a comparison report:
+
+```bash
+python -m demo test-obfuscation
+```
+
+This runs all fixture variants (plaintext, markdown table, YAML, base64, homoglyph) and outputs:
+- Success rate for each technique
+- Obfuscation methods detected
+- Detailed results in `obfuscation_test_results.json`
+
+For detailed documentation on obfuscation techniques, see [OBFUSCATION.md](./OBFUSCATION.md).
+
 ### Optional: Use JSONL memory backend instead of SQLite
 ```bash
 python -m demo run --memory jsonl

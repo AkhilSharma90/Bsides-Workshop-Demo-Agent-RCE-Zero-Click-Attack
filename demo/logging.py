@@ -56,12 +56,16 @@ class RunLogger:
         memory_ops: Optional[List[Dict[str, Any]]] = None,
         tool_calls: Optional[List[Dict[str, Any]]] = None,
         agent_meta: Optional[Dict[str, Any]] = None,
+        obfuscation_method: Optional[str] = None,
     ) -> None:
         trust_color = Colors.GREEN if trust == "trusted" else Colors.YELLOW
+        obf_tag = ""
+        if obfuscation_method:
+            obf_tag = f" {Colors.RED}[obf:{obfuscation_method}]{Colors.RESET}"
         line = (
             f"{Colors.CYAN}[{agent}]{Colors.RESET} "
             f"{Colors.BLUE}[{step}]{Colors.RESET} "
-            f"{trust_color}[{trust}]{Colors.RESET} {message}"
+            f"{trust_color}[{trust}]{Colors.RESET}{obf_tag} {message}"
         )
         print(line)
         self._maybe_pause()
@@ -79,14 +83,20 @@ class RunLogger:
             outputs=outputs or {},
             memory_ops=memory_ops or [],
             tool_calls=tool_calls or [],
+            obfuscation_method=obfuscation_method,
         )
         self._append_trace(model_to_dict(event))
-        self.timeline_entries.append(f"- **{agent}**: {message}")
+        timeline_msg = f"- **{agent}**: {message}"
+        if obfuscation_method:
+            timeline_msg += f" (obfuscation: {obfuscation_method})"
+        self.timeline_entries.append(timeline_msg)
         if self.detail == "rich":
             self._print_detail("inputs", inputs)
             self._print_detail("outputs", outputs)
             self._print_detail("memory_ops", memory_ops)
             self._print_detail("tool_calls", tool_calls)
+            if obfuscation_method:
+                self._print_detail("obfuscation_method", {"method": obfuscation_method})
 
     def decision(self, agent: str, decision: str, reasons: List[str]) -> None:
         color = Colors.GREEN if decision == "allow" else Colors.RED

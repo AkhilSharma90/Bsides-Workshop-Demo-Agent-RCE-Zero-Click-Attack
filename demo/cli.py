@@ -6,6 +6,7 @@ import sys
 from dotenv import load_dotenv
 
 from .runner import Runner
+from .obfuscation_test_runner import ObfuscationTestRunner
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -14,7 +15,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     run_cmd = sub.add_parser("run", help="Run the demo")
     run_cmd.add_argument("--memory", choices=["sqlite", "jsonl"], default="sqlite")
-    run_cmd.add_argument("--fixture", choices=["poisoned", "clean"], default="poisoned")
+    run_cmd.add_argument(
+        "--fixture",
+        choices=[
+            "poisoned",
+            "clean",
+            "markdown_table",
+            "yaml",
+            "base64",
+            "homoglyph",
+        ],
+        default="poisoned",
+        help="Web fixture to use: poisoned (plaintext), clean, or obfuscated variants (markdown_table, yaml, base64, homoglyph)",
+    )
     run_cmd.add_argument(
         "--no-crew-logs",
         action="store_true",
@@ -35,6 +48,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     reset_cmd = sub.add_parser("reset", help="Reset demo state")
     reset_cmd.add_argument("--confirm", action="store_true", help="Confirm destructive reset")
+
+    test_cmd = sub.add_parser("test-obfuscation", help="Run all obfuscation variant tests")
+    test_cmd.add_argument("--memory", choices=["sqlite", "jsonl"], default="sqlite")
 
     return parser
 
@@ -62,6 +78,13 @@ def main(argv: list[str] | None = None) -> int:
         runner = Runner()
         runner.reset()
         print("Reset complete")
+        return 0
+
+    if args.command == "test-obfuscation":
+        import os
+        root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        test_runner = ObfuscationTestRunner(root_dir)
+        test_runner.run_all_tests(memory_backend=args.memory)
         return 0
 
     parser.print_help()
