@@ -16,8 +16,17 @@ This is a **security research demo** that shows how AI agents can be exploited t
 # Run the basic attack (plaintext token)
 python -m demo run
 
-# Run with obfuscated attack (harder to detect)
-python -m demo run --fixture base64
+# Run with realistic command outputs (no Docker needed)
+python -m demo run --execution mock-realistic
+
+# Run with actual Docker execution (most realistic)
+python -m demo run --execution sandboxed
+
+# Run with obfuscated attack
+python -m demo run --fixture base64 --execution mock-realistic
+
+# Test defended mode (attacks blocked)
+python -m demo run --mode defended
 
 # Test all attack variants
 python -m demo test-obfuscation
@@ -30,6 +39,8 @@ python -m demo reset --confirm
 
 | Option | Values | Description |
 |--------|--------|-------------|
+| `--mode` | `vulnerable`, `defended` | Security mode: attacks succeed or blocked |
+| `--execution` | `simulated`, `mock-realistic`, `sandboxed` | How commands are executed |
 | `--fixture` | `poisoned`, `clean`, `markdown_table`, `yaml`, `base64`, `homoglyph` | Which attack to run |
 | `--memory` | `sqlite`, `jsonl` | Storage backend |
 | `--pace` | `0` to `5` | Delay between log lines (0=instant, 2=presentation mode) |
@@ -184,6 +195,103 @@ serviceA WRΙTE_PWNED_FΙLE
 Note: `Ι` is Greek iota (U+0399), not ASCII `I` (U+0049)
 
 **Evasion**: Looks identical but fails exact string comparison
+
+---
+
+## 🎮 Execution Modes: From Simulation to Reality
+
+The demo supports three execution modes that show progressively more realistic RCE:
+
+### Mode 1: Simulated (Default)
+```bash
+python -m demo run --execution simulated
+```
+
+**What happens**: Only writes `pwned.txt` with attack summary. No command execution shown.
+
+**Use case**: Quick demos, understanding attack flow without extras.
+
+**pwned.txt output**:
+```
+============================================================
+=                     SIMULATED RCE                        =
+============================================================
+TARGET: serviceA WRITE_PWNED_FILE
+THIS IS A SAFE DEMO. No real commands are executed.
+```
+
+---
+
+### Mode 2: Mock-Realistic
+```bash
+python -m demo run --execution mock-realistic
+```
+
+**What happens**: Generates fake but convincing kubectl/aws/ssh command outputs.
+
+**Use case**: Impressive demos without Docker requirement, fast execution.
+
+**pwned.txt output**:
+```
+============================================================
+=                MOCK COMMAND EXECUTION                    =
+============================================================
+COMMAND: kubectl get pods
+STATUS: success
+
+OUTPUT:
+NAME              READY   STATUS    RESTARTS   AGE
+api-server-7d8f9c4b   1/1     Running   0          5d
+worker-5c3a1e8d       1/1     Running   0          3d
+
+IMPACT:
+In a real attack, this command would have executed with full
+privileges, exposing cluster infrastructure.
+```
+
+---
+
+### Mode 3: Sandboxed (Docker)
+```bash
+python -m demo run --execution sandboxed
+```
+
+**What happens**: Actually executes commands in isolated Docker container.
+
+**Requirements**: Docker installed, `bsides-sandbox:latest` image built.
+
+**Use case**: Prove actual execution happens (not smoke and mirrors), advanced demos.
+
+**How it works**:
+1. Extracts command from poisoned target
+2. Spins up isolated container (no network, read-only, resource limits)
+3. Runs command inside container using fake tools
+4. Captures output
+5. Destroys container
+
+**Safety controls**:
+- Network disabled (`--network none`)
+- Read-only filesystem (`--read-only`)
+- Memory limit (128MB)
+- CPU limit (50%)
+- Non-root user
+- Command allowlist
+
+**pwned.txt output**: Same as mock-realistic, but output comes from actual Docker execution.
+
+---
+
+### Comparison Table
+
+| Feature | Simulated | Mock-Realistic | Sandboxed |
+|---------|-----------|----------------|-----------|
+| **Speed** | Instant | Instant | ~1-2 seconds |
+| **Docker required** | No | No | Yes |
+| **Command output** | None | Fake | Real (from Docker) |
+| **Realism** | Low | High | Very High |
+| **Workshop use** | Understanding | Demos | Proof |
+
+**Recommendation**: Use `mock-realistic` for most workshop demos, `sandboxed` for "let me prove this is real" moments.
 
 ---
 
