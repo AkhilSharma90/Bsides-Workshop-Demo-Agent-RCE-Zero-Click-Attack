@@ -4,9 +4,11 @@ import os
 import base64
 import unicodedata
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from .memory import MemoryStore
+from .mock_commands import MockCommandGenerator
+from .sandbox import SandboxedExecutor
 from .schemas import MCPResponse, MCPPayload, MemoryRecord
 from .utils import model_to_dict
 
@@ -38,11 +40,14 @@ class MemoryTool:
 
 
 class MCPServerSim:
-    def __init__(self, artifacts_dir: str, mode: str) -> None:
+    def __init__(self, artifacts_dir: str, mode: str, execution_mode: str = "simulated") -> None:
         self.artifacts_dir = artifacts_dir
         self.mode = mode
+        self.execution_mode = execution_mode
         self.allowlist = ["serviceA", "serviceB"]
         self.poison_token = "WRITE_PWNED_FILE"
+        self.mock_generator = MockCommandGenerator()
+        self.sandbox = SandboxedExecutor()
 
     def _normalize_unicode(self, text: str) -> str:
         """Normalize Unicode to NFD form and remove combining characters."""
@@ -139,13 +144,28 @@ class MCPServerSim:
 
         if self.mode == "vulnerable":
             if is_poisoned:
+                # Execute command based on execution mode
+                execution_output = None
+
+                if self.execution_mode == "mock-realistic":
+                    # Generate fake but realistic command output
+                    execution_output = self.mock_generator.generate(target)
+
+                elif self.execution_mode == "sandboxed":
+                    # Actually execute in Docker container (safely)
+                    command = self.sandbox.extract_command_from_target(target)
+                    execution_output = self.sandbox.execute(command)
+
+                # Write pwned.txt with execution results
                 pwned_path = os.path.join(self.artifacts_dir, "pwned.txt")
-                self._write_pwned(pwned_path, target, obfuscation_method)
+                self._write_pwned(pwned_path, target, obfuscation_method, execution_output)
                 artifacts_written.append(pwned_path)
+
+            message_suffix = f"obfuscation: {obfuscation_method or 'none'}, execution: {self.execution_mode}"
             return model_to_dict(
                 MCPResponse(
                     status="ok",
-                    message=f"diagnostic executed (vulnerable mode, obfuscation: {obfuscation_method or 'none'})",
+                    message=f"diagnostic executed (vulnerable mode, {message_suffix})",
                     artifacts_written=artifacts_written,
                 )
             )
@@ -181,7 +201,7 @@ class MCPServerSim:
         suspicious = ["WRITE_PWNED_FILE", " ", ";", "&&", "|", "`", "$"]
         return any(token in target for token in suspicious)
 
-    def _write_pwned(self, path: str, target: str, obfuscation_method: Optional[str]) -> None:
+    def _write_pwned(self, path: str, target: str, obfuscation_method: Optional[str], mock_output: Optional[Dict] = None) -> None:
         timestamp = datetime.utcnow().isoformat() + "Z"
         with open(path, "w", encoding="utf-8") as handle:
             handle.write("============================================================\n")
@@ -203,6 +223,28 @@ class MCPServerSim:
                 handle.write(f"ATTACK TECHNIQUE: Token was obfuscated using {obfuscation_method}\n")
                 handle.write("This demonstrates evasion of simple string-based defenses.\n")
                 handle.write("\n")
+
+            # Include mock command output if present
+            if mock_output:
+                handle.write("============================================================\n")
+                handle.write("=                MOCK COMMAND EXECUTION                    =\n")
+                handle.write("============================================================\n")
+                handle.write("\n")
+                handle.write(f"COMMAND: {mock_output.get('command', target)}\n")
+                handle.write(f"STATUS: {mock_output.get('status', 'unknown')}\n")
+                handle.write("\n")
+                handle.write("OUTPUT:\n")
+                handle.write("-----------------------------------------------------------\n")
+                stdout = mock_output.get('stdout', str(mock_output.get('output', 'No output')))
+                handle.write(stdout)
+                handle.write("\n-----------------------------------------------------------\n")
+                handle.write("\n")
+                handle.write("IMPACT:\n")
+                handle.write("In a real attack, this command would have executed with full\n")
+                handle.write("privileges, potentially exposing sensitive data or allowing\n")
+                handle.write("lateral movement within the infrastructure.\n")
+                handle.write("\n")
+
             handle.write("THIS IS A SAFE DEMO. No real commands are executed.\n")
 
     def _write_diagnostic_report(self, path: str, target: str, obfuscation_method: Optional[str] = None) -> None:

@@ -22,6 +22,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Execution mode: vulnerable (attacks succeed) or defended (attacks blocked)",
     )
     run_cmd.add_argument(
+        "--execution",
+        choices=["simulated", "mock-realistic", "sandboxed"],
+        default="simulated",
+        help="Tool execution mode: simulated (pwned.txt only), mock-realistic (fake outputs), sandboxed (real Docker)",
+    )
+    run_cmd.add_argument(
         "--fixture",
         choices=[
             "poisoned",
@@ -69,6 +75,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "run":
         runner = Runner(
             mode=args.mode,
+            execution_mode=args.execution,
             memory_backend=args.memory,
             fixture=args.fixture,
             crew_logs=not args.no_crew_logs,
