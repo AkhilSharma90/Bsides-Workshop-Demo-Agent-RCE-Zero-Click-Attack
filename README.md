@@ -32,9 +32,15 @@ See [DEFENSES.md](./DEFENSES.md) for detailed defense architecture and hands-on 
 ## Workshop Setup Instructions
 
 ### Prerequisites
+
+**Required:**
 - Python 3.8 or higher
 - pip (Python package manager)
 - API keys for OpenAI and Anthropic (see below)
+
+**Optional (for sandboxed execution mode):**
+- Docker Desktop or Docker Engine
+- Only needed if you want to use `--execution sandboxed`
 
 ### Step 1: Clone the repository
 ```bash
@@ -78,26 +84,59 @@ python -m demo --help
 
 You should see the demo command-line interface with available options.
 
+### Step 6 (Optional): Build Docker sandbox image
+
+**Only needed if you want to use `--execution sandboxed` mode:**
+
+```bash
+docker build -t bsides-sandbox:latest -f Dockerfile.sandbox .
+```
+
+This creates an isolated container with fake kubectl/aws/ssh tools for safe command execution demos.
+
+To verify it works:
+```bash
+docker run --rm bsides-sandbox:latest safe-exec "kubectl get pods"
+```
+
+You should see realistic pod listings.
+
 ## Running the Demo
 
 ### Execution Modes
 
-The demo supports two modes:
+The demo supports two dimensions of configuration:
+
+#### 1. Security Mode (--mode)
 
 | Mode | Purpose | Behavior |
 |------|---------|----------|
 | **vulnerable** (default) | Demonstrate attacks | Trust bug active, policy disabled, attacks succeed |
 | **defended** | Demonstrate defenses | Bug fixed, policy enforced, attacks blocked |
 
-```bash
-# Vulnerable mode: attacks succeed
-python -m demo run --mode vulnerable --fixture poisoned
+#### 2. Execution Mode (--execution)
 
-# Defended mode: attacks blocked
+| Mode | Purpose | Output |
+|------|---------|--------|
+| **simulated** (default) | Safe simulation | pwned.txt created, no command output |
+| **mock-realistic** | Fake but realistic | Convincing kubectl/aws outputs (no Docker) |
+| **sandboxed** | Real Docker execution | Actual commands in isolated container |
+
+```bash
+# Vulnerable mode with realistic command outputs
+python -m demo run --mode vulnerable --execution mock-realistic --fixture poisoned
+
+# Vulnerable mode with Docker sandbox (actual execution)
+python -m demo run --mode vulnerable --execution sandboxed --fixture poisoned
+
+# Defended mode (always blocks before execution)
 python -m demo run --mode defended --fixture poisoned
 ```
 
-**For workshop attendees**: Start with vulnerable mode to see attacks, then read [DEFENSES.md](./DEFENSES.md) to understand how defended mode blocks them.
+**For workshop attendees**:
+- Start with `--execution mock-realistic` for compelling demos without Docker
+- Use `--execution sandboxed` to prove actual execution happens (requires Docker)
+- Read [DEFENSES.md](./DEFENSES.md) to understand how defended mode blocks attacks
 
 ### Basic usage (vulnerable chain)
 ```bash
