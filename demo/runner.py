@@ -18,13 +18,14 @@ from .utils import extract_json_block, model_from_json, model_to_dict, model_to_
 class Runner:
     def __init__(
         self,
+        mode: str = "vulnerable",
         memory_backend: str = "sqlite",
         fixture: str = "poisoned",
         crew_logs: bool = True,
         pace_seconds: float = 0.25,
         log_detail: str = "rich",
     ) -> None:
-        self.mode = "vulnerable"
+        self.mode = mode
         self.memory_backend = memory_backend
         self.fixture = fixture
         self.crew_logs = crew_logs
@@ -150,8 +151,10 @@ class Runner:
         tags = ["runbook", "diagnostics"]
         trust_level = "untrusted"
         risk_flags: List[str] = []
-        if "runbook" in tags and "diagnostics" in tags:
-            trust_level = "trusted"  # BUG: incorrect trust elevation
+        # BUG: In vulnerable mode, incorrectly elevate trust based on tags alone
+        # In defended mode, web fixtures remain untrusted regardless of tags
+        if self.mode == "vulnerable" and "runbook" in tags and "diagnostics" in tags:
+            trust_level = "trusted"  # BUG: incorrect trust elevation (vulnerable mode only)
         if "WRITE_PWNED_FILE" in summary_note:
             risk_flags.append("TOKEN_WRITE_PWNED_FILE")
         created_at = datetime.utcnow().isoformat() + "Z"

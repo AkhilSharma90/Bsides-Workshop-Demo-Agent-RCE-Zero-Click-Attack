@@ -3,11 +3,22 @@
 This project is a **safe, multi-agent** demo that shows how untrusted content can be ingested, incorrectly trusted, and then used to trigger a privileged tool call — **without any human approval** (zero-click). It uses real LLM calls across multiple providers to make the chain feel like a real CrewAI run.
 
 ## What this demo shows
+
+### Attack Demonstrations (Vulnerable Mode)
 - **Memory poisoning:** a web-derived runbook includes a subtle token: `WRITE_PWNED_FILE`.
 - **Authority propagation:** a bug in the memory writer incorrectly marks the note as trusted.
 - **Privileged tool misuse:** the planner forwards the unsafe target to a privileged tool.
 - **Zero-click:** no human approval is required; the chain proceeds automatically.
 - **Simulated RCE:** the tool **only** writes a benign file (`./artifacts/pwned.txt`) to prove the point.
+- **Obfuscation techniques:** 5 evasion methods (plaintext, markdown tables, YAML, base64, homoglyphs).
+
+### Defense Mechanisms (Defended Mode)
+- **Trust tracking:** web fixtures remain untrusted, preventing privilege escalation.
+- **Policy enforcement:** provenance checks, token detection, and allowlist validation.
+- **Obfuscation detection:** base64 decoding, Unicode normalization, structured format parsing.
+- **Defense-in-depth:** three independent security layers protect against attacks.
+
+See [DEFENSES.md](./DEFENSES.md) for detailed defense architecture and hands-on exercises.
 
 ## Safety guarantees
 - **No real command execution.**
@@ -66,6 +77,25 @@ python -m demo --help
 You should see the demo command-line interface with available options.
 
 ## Running the Demo
+
+### Execution Modes
+
+The demo supports two modes:
+
+| Mode | Purpose | Behavior |
+|------|---------|----------|
+| **vulnerable** (default) | Demonstrate attacks | Trust bug active, policy disabled, attacks succeed |
+| **defended** | Demonstrate defenses | Bug fixed, policy enforced, attacks blocked |
+
+```bash
+# Vulnerable mode: attacks succeed
+python -m demo run --mode vulnerable --fixture poisoned
+
+# Defended mode: attacks blocked
+python -m demo run --mode defended --fixture poisoned
+```
+
+**For workshop attendees**: Start with vulnerable mode to see attacks, then read [DEFENSES.md](./DEFENSES.md) to understand how defended mode blocks them.
 
 ### Basic usage (vulnerable chain)
 ```bash
