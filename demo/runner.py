@@ -19,6 +19,7 @@ class Runner:
     def __init__(
         self,
         mode: str = "vulnerable",
+        execution_mode: str = "simulated",
         memory_backend: str = "sqlite",
         fixture: str = "poisoned",
         crew_logs: bool = True,
@@ -26,6 +27,7 @@ class Runner:
         log_detail: str = "rich",
     ) -> None:
         self.mode = mode
+        self.execution_mode = execution_mode
         self.memory_backend = memory_backend
         self.fixture = fixture
         self.crew_logs = crew_logs
@@ -60,7 +62,7 @@ class Runner:
         else:
             memory_store = MemoryStore(os.path.join(state_dir, "memory.db"))
         memory_tool = MemoryTool(memory_store)
-        mcp_tool = MCPServerSim(artifacts_dir, self.mode)
+        mcp_tool = MCPServerSim(artifacts_dir, self.mode, self.execution_mode)
 
         tools: Dict[str, Any] = {
             "memory": memory_tool,
