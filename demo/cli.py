@@ -16,6 +16,12 @@ def build_parser() -> argparse.ArgumentParser:
     run_cmd = sub.add_parser("run", help="Run the demo")
     run_cmd.add_argument("--memory", choices=["sqlite", "jsonl"], default="sqlite")
     run_cmd.add_argument(
+        "--mode",
+        choices=["vulnerable", "defended"],
+        default="vulnerable",
+        help="Execution mode: vulnerable (attacks succeed) or defended (attacks blocked)",
+    )
+    run_cmd.add_argument(
         "--fixture",
         choices=[
             "poisoned",
@@ -62,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "run":
         runner = Runner(
+            mode=args.mode,
             memory_backend=args.memory,
             fixture=args.fixture,
             crew_logs=not args.no_crew_logs,
