@@ -25,6 +25,7 @@ class Runner:
         crew_logs: bool = True,
         pace_seconds: float = 0.25,
         log_detail: str = "rich",
+        ui: bool = False,
     ) -> None:
         self.mode = mode
         self.execution_mode = execution_mode
@@ -33,6 +34,7 @@ class Runner:
         self.crew_logs = crew_logs
         self.pace_seconds = max(0.0, pace_seconds)
         self.log_detail = log_detail
+        self.ui = ui
         self.root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
     def run(self) -> None:
@@ -54,7 +56,10 @@ class Runner:
             self.mode,
             pace_seconds=self.pace_seconds,
             detail=self.log_detail,
+            ui_mode=self.ui,
         )
+        if self.ui and logger._attack_state is not None:
+            logger._attack_state.fixture = self.fixture
         logger.banner(f"BSides CrewAI Demo - {self.mode.upper()} MODE")
 
         if self.memory_backend == "jsonl":
@@ -220,6 +225,10 @@ class Runner:
             agent_meta=profile_for("PolicyGateAgent"),
         )
 
+        # Show blocked banner immediately when defense fires
+        if self.ui and decision.decision != "allow":
+            logger.show_blocked_banner(reasons=decision.reasons)
+
         # Step 6: PlannerAgent
         plan_prompt = (
             "TASK_NAME: plan\n"
@@ -301,6 +310,12 @@ class Runner:
             obfuscation_method=obfuscation_method,
         )
 
+        # Show PWNED banner when the attack succeeded
+        pwned_path = os.path.join(artifacts_dir, "pwned.txt")
+        if self.ui and os.path.exists(pwned_path):
+            logger.set_agent_attacked("ExecutorAgent")
+            logger.show_pwned_banner(target=plan.target, obf_method=obfuscation_method)
+
         # Step 8: ForensicsAgent
         obf_context = ""
         if obfuscation_method:
@@ -362,6 +377,10 @@ class Runner:
 
         logger.write_timeline()
         memory_store.close()
+
+        # Stop Rich Live display before final banner
+        if self.ui:
+            logger.stop_ui()
 
         logger.banner("Run Complete")
         pwned_path = os.path.join(artifacts_dir, "pwned.txt")

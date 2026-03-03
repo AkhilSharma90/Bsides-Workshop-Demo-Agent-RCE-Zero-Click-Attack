@@ -107,58 +107,58 @@ image that goes on social media.
 
 ### 1.1 Rich UI Layout
 
-- [ ] Add `rich>=13.0` to `requirements.txt`
-- [ ] Create `demo/tui.py`
-  - [ ] Import `rich.layout`, `rich.panel`, `rich.live`, `rich.table`, `rich.text`, `rich.progress`
-  - [ ] Define `AGENT_NAMES` list in display order (8 agents)
-  - [ ] Define `AgentState` dataclass: `name`, `status` (pending/running/done/attacked/blocked), `trust`, `message`
-  - [ ] Define `AttackState` dataclass: `mode`, `fixture`, `current_step`, `total_steps`, `attack_succeeded`, `obfuscation_method`
-  - [ ] Implement `build_agent_chain_panel(states: List[AgentState]) -> Panel`
-    - [ ] Each agent shown as a row: icon + name + trust badge + message
-    - [ ] Running agent shown with spinner
-    - [ ] Trusted = green, untrusted = yellow, attacked = bold red
-    - [ ] Arrows between agents (→)
-  - [ ] Implement `build_output_panel(lines: List[str]) -> Panel`
-    - [ ] Scrolling last N lines of live output
-    - [ ] Color-coded by trust
-  - [ ] Implement `build_status_bar(state: AttackState) -> Text`
-    - [ ] Shows: Mode | Fixture | Step X/8 | Trust: [level]
-  - [ ] Implement `build_layout(agent_states, output_lines, attack_state) -> Layout`
-    - [ ] Top: status bar (1 line)
-    - [ ] Left column (30%): agent chain panel
-    - [ ] Right column (70%): live output panel
-  - [ ] Implement `render_pwned_banner() -> Panel`
-    - [ ] Large red ASCII art: "PWNED" or "SIMULATED RCE"
-    - [ ] Sub-text: attack technique, fixture, obfuscation method
-    - [ ] Red border panel
-  - [ ] Implement `render_blocked_banner() -> Panel`
-    - [ ] Large green ASCII art: "BLOCKED"
-    - [ ] Sub-text: which defense layer stopped it, reasons
-    - [ ] Green border panel
+- [x] Add `rich>=13.0` to `requirements.txt`
+- [x] Create `demo/tui.py`
+  - [x] Import `rich.layout`, `rich.panel`, `rich.live`, `rich.table`, `rich.text`
+  - [x] Define `AGENT_NAMES` list in display order (8 agents)
+  - [x] Define `AgentState` dataclass: `name`, `status` (pending/running/done/attacked/blocked), `trust`, `message`
+  - [x] Define `AttackState` dataclass: `mode`, `fixture`, `current_step`, `total_steps`, `attack_succeeded`, `obfuscation_method`
+  - [x] Implement `build_agent_chain_panel(states: List[AgentState]) -> Panel`
+    - [x] Each agent shown as a row: icon + name + trust badge + message
+    - [x] Running agent shown with ▶ icon
+    - [x] Trusted = green, untrusted = yellow, attacked = bold red
+    - [x] Arrows between agents (↓)
+  - [x] Implement `build_output_panel(lines: List[str]) -> Panel`
+    - [x] Scrolling last N lines of live output
+    - [x] Color-coded by trust keywords
+  - [x] Implement `build_status_bar(state: AttackState) -> Text`
+    - [x] Shows: Mode | Fixture | Step X/8 | Obfuscation (if set)
+  - [x] Implement `build_layout(agent_states, output_lines, attack_state) -> Layout`
+    - [x] Top: status bar (1 line)
+    - [x] Left column (30%): agent chain panel
+    - [x] Right column (70%): live output panel
+  - [x] Implement `render_pwned_banner() -> Panel`
+    - [x] Large red ASCII art: "PWNED"
+    - [x] Sub-text: attack technique, fixture, obfuscation method
+    - [x] Red border panel
+  - [x] Implement `render_blocked_banner() -> Panel`
+    - [x] Large green ASCII art: "BLOCKED"
+    - [x] Sub-text: which defense layer stopped it, reasons
+    - [x] Green border panel
 
-- [ ] Modify `demo/logging.py` — `RunLogger`
-  - [ ] Add `ui_mode: bool = False` to `__init__`
-  - [ ] If `ui_mode=True`, store a `Live` context instead of printing directly
-  - [ ] Add `set_agent_running(agent_name: str)` method — updates agent state to running
-  - [ ] Add `set_agent_done(agent_name: str, trust: str, message: str)` method
-  - [ ] Add `set_agent_attacked(agent_name: str)` method — turns node red
-  - [ ] Add `set_agent_blocked(agent_name: str)` method — turns node green
-  - [ ] Add `append_output(line: str)` method — adds to scrolling output buffer
-  - [ ] Modify `step()` to call above methods when `ui_mode=True`
-  - [ ] Modify `decision()` to update PolicyGate node color
-  - [ ] Keep all existing `print()` behavior when `ui_mode=False` (backwards compat)
-  - [ ] Add `show_pwned_banner(target, obf_method)` — replaces layout with red banner for 3s
-  - [ ] Add `show_blocked_banner(reasons)` — replaces layout with green banner for 3s
+- [x] Modify `demo/logging.py` — `RunLogger`
+  - [x] Add `ui_mode: bool = False` to `__init__`
+  - [x] If `ui_mode=True`, store a `Live` context instead of printing directly
+  - [x] Add `set_agent_running(agent_name: str)` method — updates agent state to running
+  - [x] Add `set_agent_done(agent_name: str, trust: str, message: str)` method
+  - [x] Add `set_agent_attacked(agent_name: str)` method — turns node red
+  - [x] Add `set_agent_blocked(agent_name: str)` method — turns node green
+  - [x] Add `append_output(line: str)` method — adds to scrolling output buffer
+  - [x] Modify `step()` to call above methods when `ui_mode=True`
+  - [x] Modify `decision()` to update PolicyGate node color
+  - [x] Keep all existing `print()` behavior when `ui_mode=False` (backwards compat)
+  - [x] Add `show_pwned_banner(target, obf_method)` — replaces layout with red banner for 4s
+  - [x] Add `show_blocked_banner(reasons)` — replaces layout with green banner for 3s
 
-- [ ] Modify `demo/cli.py`
-  - [ ] Add `--ui` flag to `run_cmd` (default `False`)
-  - [ ] Pass `ui=args.ui` to `Runner.__init__()`
+- [x] Modify `demo/cli.py`
+  - [x] Add `--ui` flag to `run_cmd` (default `False`)
+  - [x] Pass `ui=args.ui` to `Runner.__init__()`
 
-- [ ] Modify `demo/runner.py`
-  - [ ] Accept `ui: bool = False` in `Runner.__init__()`
-  - [ ] Pass `ui_mode=ui` to `RunLogger`
-  - [ ] After step 7 (executor), if attack succeeded and `ui=True`: call `logger.show_pwned_banner()`
-  - [ ] After step 5 (policy gate), if blocked and `ui=True`: call `logger.show_blocked_banner()`
+- [x] Modify `demo/runner.py`
+  - [x] Accept `ui: bool = False` in `Runner.__init__()`
+  - [x] Pass `ui_mode=ui` to `RunLogger`
+  - [x] After step 7 (executor), if attack succeeded and `ui=True`: call `logger.show_pwned_banner()`
+  - [x] After step 5 (policy gate), if blocked and `ui=True`: call `logger.show_blocked_banner()`
 
 - [ ] Test: `python -m demo run --ui` renders layout without crashing
 - [ ] Test: agent nodes light up one by one as steps execute

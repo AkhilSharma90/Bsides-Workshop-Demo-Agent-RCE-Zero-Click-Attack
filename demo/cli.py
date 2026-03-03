@@ -70,6 +70,11 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help=f"Path to the JSONL cache file (default: {_DEFAULT_CACHE})",
     )
+    run_cmd.add_argument(
+        "--ui",
+        action="store_true",
+        help="Enable Rich TUI: animated agent pipeline, live output panel, and finale banners",
+    )
 
     reset_cmd = sub.add_parser("reset", help="Reset demo state")
     reset_cmd.add_argument("--confirm", action="store_true", help="Confirm destructive reset")
@@ -112,6 +117,7 @@ def main(argv: list[str] | None = None) -> int:
             crew_logs=not args.no_crew_logs,
             pace_seconds=args.pace,
             log_detail=args.log_detail,
+            ui=args.ui,
         )
         runner.run()
         return 0
