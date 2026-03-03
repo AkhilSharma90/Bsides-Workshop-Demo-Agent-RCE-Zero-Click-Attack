@@ -45,38 +45,38 @@ confident. Your pacing is controlled. No nervous energy from "will this work?"
 
 ### 0.1 Record/Replay LLM Shim
 
-- [ ] Create `demo/replay.py`
-  - [ ] Define `ReplayStore` class with `path: str` constructor
-  - [ ] `_prompt_key(prompt: str) -> str` — returns `sha256(prompt.strip())[:16]`
-  - [ ] `has(key: str) -> bool` — checks if key exists in loaded cache
-  - [ ] `get(key: str) -> str` — returns cached response, raises `KeyError` if missing
-  - [ ] `record(key: str, response: str) -> None` — appends `{key, response, ts}` to JSONL file
-  - [ ] `load_all() -> None` — reads JSONL file into in-memory dict on init
-  - [ ] Handle missing cache file gracefully (creates empty file)
+- [x] Create `demo/replay.py`
+  - [x] Define `ReplayStore` class with `path: str` constructor
+  - [x] `_prompt_key(prompt: str) -> str` — returns `sha256(prompt.strip())[:16]`
+  - [x] `has(key: str) -> bool` — checks if key exists in loaded cache
+  - [x] `get(key: str) -> str` — returns cached response, raises `KeyError` if missing
+  - [x] `record(key: str, response: str) -> None` — appends `{key, response, ts}` to JSONL file
+  - [x] `load_all() -> None` — reads JSONL file into in-memory dict on init
+  - [x] Handle missing cache file gracefully (creates empty file)
 
-- [ ] Modify `demo/llm.py` — wrap `MultiProviderLLM.complete()`
-  - [ ] Read env var `DEMO_OFFLINE` at class init; store as `self.offline: bool`
-  - [ ] Read env var `DEMO_RECORD` at class init; store as `self.record: bool`
-  - [ ] If `self.offline`: instantiate `ReplayStore` from `DEMO_CACHE_PATH` env (default `fixtures/llm_cache/default.jsonl`)
-  - [ ] In `complete()`: if offline mode, compute key, call `store.get(key)`, return cached response
-  - [ ] If key missing in offline mode: raise `RuntimeError` with message "Cache miss for prompt key {key} — run with DEMO_RECORD=1 first"
-  - [ ] If `self.record`: after real LLM call succeeds, call `store.record(key, response)`
-  - [ ] Add `last_meta` field for offline calls: `{"provider": "cache", "model": "replay", "latency_ms": 0}`
+- [x] Modify `demo/llm.py` — wrap `MultiProviderLLM.complete()`
+  - [x] Read env var `DEMO_OFFLINE` at class init; store as `self.offline: bool`
+  - [x] Read env var `DEMO_RECORD` at class init; store as `self.record: bool`
+  - [x] If `self.offline`: instantiate `ReplayStore` from `DEMO_CACHE_PATH` env (default `fixtures/llm_cache/default.jsonl`)
+  - [x] In `complete()`: if offline mode, compute key, call `store.get(key)`, return cached response
+  - [x] If key missing in offline mode: raise `RuntimeError` with message "Cache miss for prompt key {key} — run with DEMO_RECORD=1 first"
+  - [x] If `self.record`: after real LLM call succeeds, call `store.record(key, response)`
+  - [x] Add `last_meta` field for offline calls: `{"provider": "cache", "model": "replay", "latency_ms": 0}`
 
-- [ ] Modify `demo/cli.py`
-  - [ ] Add `--offline` flag to `run_cmd` (sets `DEMO_OFFLINE=1` in env before runner init)
-  - [ ] Add `--record` flag to `run_cmd` (sets `DEMO_RECORD=1`)
-  - [ ] Add `--cache` flag to specify cache file path (default `fixtures/llm_cache/default.jsonl`)
-  - [ ] Add `record-cache` subcommand: runs all fixtures in record mode, saves to cache
-    - [ ] Iterates all fixture names
-    - [ ] Runs each in both `vulnerable` and `defended` mode
-    - [ ] Saves to `fixtures/llm_cache/<fixture>_<mode>.jsonl`
+- [x] Modify `demo/cli.py`
+  - [x] Add `--offline` flag to `run_cmd` (sets `DEMO_OFFLINE=1` in env before runner init)
+  - [x] Add `--record` flag to `run_cmd` (sets `DEMO_RECORD=1`)
+  - [x] Add `--cache` flag to specify cache file path (default `fixtures/llm_cache/default.jsonl`)
+  - [x] Add `record-cache` subcommand: runs all fixtures in record mode, saves to cache
+    - [x] Iterates all fixture names
+    - [x] Runs each in both `vulnerable` and `defended` mode
+    - [x] Saves to `fixtures/llm_cache/<fixture>_<mode>.jsonl`
 
-- [ ] Create `fixtures/llm_cache/` directory
-  - [ ] Add `.gitkeep` so directory is tracked
-  - [ ] Add `README.md` in the directory explaining the format
+- [x] Create `fixtures/llm_cache/` directory
+  - [x] Add `.gitkeep` so directory is tracked
+  - [x] Add `README.md` in the directory explaining the format
 
-- [ ] Pre-record cache files (run after 0.1 is implemented)
+- [ ] Pre-record cache files (run after 0.1 is implemented — requires API keys)
   - [ ] `fixtures/llm_cache/poisoned_vulnerable.jsonl`
   - [ ] `fixtures/llm_cache/poisoned_defended.jsonl`
   - [ ] `fixtures/llm_cache/base64_vulnerable.jsonl`

@@ -8,6 +8,11 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
+from .replay import ReplayStore
+
+# Resolved once at import time so all relative cache paths are consistent.
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
 try:
     from crewai.llms.base_llm import BaseLLM
 except Exception:  # pragma: no cover - crewai optional for shim usage
@@ -42,12 +47,13 @@ class LLMConfig:
 
     @classmethod
     def from_env(cls) -> "LLMConfig":
+        offline = os.environ.get("DEMO_OFFLINE", "").strip() == "1"
         missing: List[str] = []
         openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
         anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-        if not openai_key:
+        if not openai_key and not offline:
             missing.append("OPENAI_API_KEY")
-        if not anthropic_key:
+        if not anthropic_key and not offline:
             missing.append("ANTHROPIC_API_KEY")
         if missing:
             raise RuntimeError(f"Missing API keys: {', '.join(missing)}")
@@ -71,8 +77,8 @@ class LLMConfig:
                 return default
 
         return cls(
-            openai_api_key=openai_key,
-            anthropic_api_key=anthropic_key,
+            openai_api_key=openai_key or "offline-placeholder",
+            anthropic_api_key=anthropic_key or "offline-placeholder",
             openai_model=os.environ.get("OPENAI_MODEL", "gpt-4.1"),
             anthropic_model=os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
             openai_base_url=os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1"),
@@ -199,6 +205,15 @@ class MultiProviderLLM(BaseLLM):
         self.last_meta: Dict[str, Any] = {}
         self.call_log: List[Dict[str, Any]] = []
 
+        # Offline / record mode (read env vars at init time)
+        self.offline: bool = os.environ.get("DEMO_OFFLINE", "").strip() == "1"
+        self.record: bool = os.environ.get("DEMO_RECORD", "").strip() == "1"
+        cache_rel = os.environ.get("DEMO_CACHE_PATH", "fixtures/llm_cache/default.jsonl").strip()
+        cache_path = cache_rel if os.path.isabs(cache_rel) else os.path.join(_ROOT, cache_rel)
+        self._replay: Optional[ReplayStore] = None
+        if self.offline or self.record:
+            self._replay = ReplayStore(cache_path)
+
     @classmethod
     def from_env(cls) -> "MultiProviderLLM":
         config = LLMConfig.from_env()
@@ -209,6 +224,22 @@ class MultiProviderLLM(BaseLLM):
         task_name = str(kwargs.pop("task_name", "") or "").strip().lower()
         if not task_name:
             task_name = _extract_task_name(prompt)
+
+        # Offline mode: serve from cache, never call the API
+        if self.offline and self._replay is not None:
+            key = self._replay._prompt_key(prompt)
+            if not self._replay.has(key):
+                raise RuntimeError(
+                    f"Cache miss for prompt key {key} (task={task_name!r}) — "
+                    "run with DEMO_RECORD=1 first to populate the cache."
+                )
+            text = self._replay.get(key)
+            self.last_meta = {"provider": "cache", "model": "replay", "latency_ms": 0, "task_name": task_name or "unknown"}
+            self.call_log.append(self.last_meta)
+            if hasattr(self, "_apply_stop_words"):
+                return self._apply_stop_words(text)
+            return text
+
         provider = self.task_provider_map.get(task_name, self.default_provider)
         if provider not in self.providers:
             provider = self.default_provider
@@ -218,6 +249,12 @@ class MultiProviderLLM(BaseLLM):
         meta["task_name"] = task_name or "unknown"
         self.last_meta = meta
         self.call_log.append(meta)
+
+        # Record mode: persist this response to the cache
+        if self.record and self._replay is not None:
+            key = self._replay._prompt_key(prompt)
+            self._replay.record(key, text)
+
         if hasattr(self, "_apply_stop_words"):
             return self._apply_stop_words(text)
         return text

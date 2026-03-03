@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
 from dotenv import load_dotenv
 
 from .runner import Runner
 from .obfuscation_test_runner import ObfuscationTestRunner
+
+_ALL_FIXTURES = ["poisoned", "clean", "markdown_table", "yaml", "base64", "homoglyph"]
+_DEFAULT_CACHE = "fixtures/llm_cache/default.jsonl"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -29,14 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_cmd.add_argument(
         "--fixture",
-        choices=[
-            "poisoned",
-            "clean",
-            "markdown_table",
-            "yaml",
-            "base64",
-            "homoglyph",
-        ],
+        choices=_ALL_FIXTURES,
         default="poisoned",
         help="Web fixture to use: poisoned (plaintext), clean, or obfuscated variants (markdown_table, yaml, base64, homoglyph)",
     )
@@ -57,12 +54,39 @@ def build_parser() -> argparse.ArgumentParser:
         default="rich",
         help="Run logger detail level (rich prints inputs/outputs).",
     )
+    run_cmd.add_argument(
+        "--offline",
+        action="store_true",
+        help="Run in offline mode: serve all LLM calls from the local cache (no API calls made)",
+    )
+    run_cmd.add_argument(
+        "--record",
+        action="store_true",
+        help="Record mode: make real LLM calls and save responses to the cache file",
+    )
+    run_cmd.add_argument(
+        "--cache",
+        default=_DEFAULT_CACHE,
+        metavar="PATH",
+        help=f"Path to the JSONL cache file (default: {_DEFAULT_CACHE})",
+    )
 
     reset_cmd = sub.add_parser("reset", help="Reset demo state")
     reset_cmd.add_argument("--confirm", action="store_true", help="Confirm destructive reset")
 
     test_cmd = sub.add_parser("test-obfuscation", help="Run all obfuscation variant tests")
     test_cmd.add_argument("--memory", choices=["sqlite", "jsonl"], default="sqlite")
+
+    record_cmd = sub.add_parser(
+        "record-cache",
+        help="Pre-record LLM responses for all fixtures (requires API keys). Run once before presenting.",
+    )
+    record_cmd.add_argument("--memory", choices=["sqlite", "jsonl"], default="sqlite")
+    record_cmd.add_argument(
+        "--execution",
+        choices=["simulated", "mock-realistic", "sandboxed"],
+        default="simulated",
+    )
 
     return parser
 
@@ -73,6 +97,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "run":
+        # Inject env vars so MultiProviderLLM picks them up on init
+        if args.offline:
+            os.environ["DEMO_OFFLINE"] = "1"
+        if args.record:
+            os.environ["DEMO_RECORD"] = "1"
+        os.environ["DEMO_CACHE_PATH"] = args.cache
+
         runner = Runner(
             mode=args.mode,
             execution_mode=args.execution,
@@ -95,14 +126,53 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "test-obfuscation":
-        import os
         root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
         test_runner = ObfuscationTestRunner(root_dir)
         test_runner.run_all_tests(memory_backend=args.memory)
         return 0
 
+    if args.command == "record-cache":
+        return _run_record_cache(args)
+
     parser.print_help()
     return 1
+
+
+def _run_record_cache(args: argparse.Namespace) -> int:
+    """Run all fixtures in both modes with DEMO_RECORD=1 to populate cache files."""
+    os.environ["DEMO_RECORD"] = "1"
+    root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    cache_dir = os.path.join(root_dir, "fixtures", "llm_cache")
+    os.makedirs(cache_dir, exist_ok=True)
+
+    failures: list[str] = []
+    for fixture in _ALL_FIXTURES:
+        for mode in ["vulnerable", "defended"]:
+            cache_file = os.path.join(cache_dir, f"{fixture}_{mode}.jsonl")
+            os.environ["DEMO_CACHE_PATH"] = cache_file
+            label = f"{fixture}/{mode}"
+            print(f"Recording {label} -> {cache_file}")
+            try:
+                runner = Runner(
+                    mode=mode,
+                    execution_mode=args.execution,
+                    memory_backend=args.memory,
+                    fixture=fixture,
+                    crew_logs=False,
+                    pace_seconds=0.0,
+                    log_detail="minimal",
+                )
+                runner.run()
+                print(f"  OK: {label}")
+            except Exception as exc:
+                print(f"  FAILED: {label}: {exc}")
+                failures.append(label)
+
+    if failures:
+        print(f"\nFailed fixtures: {', '.join(failures)}")
+        return 1
+    print("\nAll fixtures recorded successfully.")
+    return 0
 
 
 if __name__ == "__main__":
