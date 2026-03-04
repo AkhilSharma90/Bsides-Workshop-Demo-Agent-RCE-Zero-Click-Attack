@@ -38,6 +38,7 @@ class Runner:
         approval: str = "none",
         isolation: bool = False,
         capture_llm: bool = False,
+        controls: Optional[Dict[str, bool]] = None,
     ) -> None:
         self.mode = mode
         self.execution_mode = execution_mode
@@ -52,6 +53,22 @@ class Runner:
         self.approval = approval
         self.isolation = isolation
         self.capture_llm = capture_llm
+        # Phase 11.4: Fine-grained control toggles
+        # Default behaviour is determined by mode; controls dict overrides per-key
+        _defaults: Dict[str, bool] = {
+            "trust_elevation_bug": (mode == "vulnerable"),
+            "policy_gate": True,
+            "allowlist": True,
+            "obfuscation_detection": (mode == "defended"),
+            "taint_tracking": (mode == "defended"),
+            "approval_gate": False,
+            "quarantine": (mode == "defended"),
+            "strict_schema": (mode == "defended"),
+            "capability_tokens": (mode == "defended"),
+        }
+        if controls:
+            _defaults.update(controls)
+        self.controls = _defaults
         self.root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
     def run(self) -> None:
@@ -273,8 +290,9 @@ class Runner:
         risk_flags: List[str] = []
         # BUG: In vulnerable mode, incorrectly elevate trust based on tags alone
         # In defended mode, web fixtures remain untrusted regardless of tags
-        if self.mode == "vulnerable" and "runbook" in tags and "diagnostics" in tags:
-            trust_level = "trusted"  # BUG: incorrect trust elevation (vulnerable mode only)
+        # Phase 11.4: trust_elevation_bug control can override this per-control
+        if self.controls.get("trust_elevation_bug", self.mode == "vulnerable") and "runbook" in tags and "diagnostics" in tags:
+            trust_level = "trusted"  # BUG: incorrect trust elevation
         # Supply chain: in vulnerable mode, fake signature also incorrectly elevates trust
         if has_fake_sig and self.mode == "vulnerable":
             trust_level = "trusted"
@@ -312,9 +330,10 @@ class Runner:
             )
 
         # Quarantine: in defended mode, quarantine poisoned untrusted records immediately
+        # Phase 11.4: quarantine control can override
         quarantined = False
         if (
-            self.mode == "defended"
+            self.controls.get("quarantine", self.mode == "defended")
             and trust_level == "untrusted"
             and "TOKEN_WRITE_PWNED_FILE" in risk_flags
             and hasattr(memory_store, "quarantine_note")
@@ -409,7 +428,9 @@ class Runner:
             ))
 
         # Step 5: PolicyGateAgent
-        policy_gate = PolicyGate(self.mode)
+        # Phase 11.4: policy_gate control can disable the policy check (always allow)
+        _effective_mode = self.mode if self.controls.get("policy_gate", True) else "vulnerable"
+        policy_gate = PolicyGate(_effective_mode)
         decision = policy_gate.evaluate(context_pack)
         logger.decision("PolicyGateAgent", decision.decision, decision.reasons)
         logger.step(
@@ -518,8 +539,9 @@ class Runner:
             plan.taint_chain = all_taints
 
         # Phase 7.6: Strict allowlist schema validation (defended mode)
+        # Phase 11.4: strict_schema control can override
         strict_reject_reason: Optional[str] = None
-        if self.mode == "defended":
+        if self.controls.get("strict_schema", self.mode == "defended"):
             try:
                 StrictActionPlan(
                     tool=plan.tool,
@@ -548,9 +570,9 @@ class Runner:
                 )
 
         # Phase 7.8: Issue capability token after plan is built (defended mode)
-        # Token binds the approved target — executor validates before proceeding
+        # Phase 11.4: capability_tokens control can override
         cap_token: Optional[CapabilityToken] = None
-        if self.mode == "defended" and decision.decision == "allow" and plan.target != "REFUSED":
+        if self.controls.get("capability_tokens", self.mode == "defended") and decision.decision == "allow" and plan.target != "REFUSED":
             decision_id = hashlib.sha256(
                 (model_to_json(decision) + model_to_json(context_pack)).encode()
             ).hexdigest()[:12]
@@ -606,8 +628,9 @@ class Runner:
         obfuscation_method: Optional[str] = None
 
         # Phase 7.8: Validate capability token before execution (defended mode)
+        # Phase 11.4: capability_tokens control can override
         cap_token_valid = True
-        if self.mode == "defended" and cap_token is not None:
+        if self.controls.get("capability_tokens", self.mode == "defended") and cap_token is not None:
             cap_token_valid = cap_token.is_valid(plan.target)
             if not cap_token_valid:
                 logger.step(

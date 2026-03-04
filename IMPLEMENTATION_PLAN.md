@@ -925,24 +925,24 @@ their CI pipelines.
 
 ### 11.3 Multi-Model Comparison
 
-- [ ] Modify `demo/cli.py`
-  - [ ] Add `compare-models` subcommand
-  - [ ] Runs the same fixture with openai-only, anthropic-only, and multi-provider LLM configs
-  - [ ] Compares: plan.target produced, policy decision reasoning, forensics quality
-  - [ ] Outputs comparison table to `runs/<compare_id>/model_comparison.md`
+- [x] Modify `demo/cli.py`
+  - [x] Add `compare-models` subcommand
+  - [x] Runs the same fixture with openai-only, anthropic-only, and multi-provider LLM configs
+  - [x] Compares: plan.target produced, policy decision reasoning, forensics quality
+  - [x] Outputs comparison table to `runs/<compare_id>/model_comparison.md`
 
 ### 11.4 Interactive Toggle Sheet
 
-- [ ] Modify `demo/cli.py`
-  - [ ] Add `--controls` flag: accepts comma-separated control names to enable/disable
-  - [ ] Controls: `trust_elevation_bug`, `policy_gate`, `allowlist`, `obfuscation_detection`, `taint_tracking`, `approval_gate`, `quarantine`
-  - [ ] Example: `--controls trust_elevation_bug=on,policy_gate=off` turns on the bug but disables policy gate
-  - [ ] Each control is passed to `Runner` and used to gate the corresponding code paths
+- [x] Modify `demo/cli.py`
+  - [x] Add `--controls` flag: accepts comma-separated control names to enable/disable
+  - [x] Controls: `trust_elevation_bug`, `policy_gate`, `allowlist`, `obfuscation_detection`, `taint_tracking`, `approval_gate`, `quarantine`
+  - [x] Example: `--controls trust_elevation_bug=on,policy_gate=off` turns on the bug but disables policy gate
+  - [x] Each control is passed to `Runner` and used to gate the corresponding code paths
 
-- [ ] Modify `demo/runner.py`
-  - [ ] Accept `controls: Dict[str, bool]` in `__init__`
-  - [ ] Gate each security-relevant code path with the corresponding control flag
-  - [ ] Default: all controls match current `--mode` behavior
+- [x] Modify `demo/runner.py`
+  - [x] Accept `controls: Dict[str, bool]` in `__init__`
+  - [x] Gate each security-relevant code path with the corresponding control flag
+  - [x] Default: all controls match current `--mode` behavior
 
 ### 11.5 Regression Harness
 
