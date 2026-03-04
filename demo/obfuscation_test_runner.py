@@ -28,6 +28,8 @@ class ObfuscationTestRunner:
             "latent",
             "toolshaping",
             "canary",
+            "supply_chain",
+            "confused_deputy",
         ]
         # Some fixtures need extra CLI args to trigger (e.g. latent trigger requires a keyword query)
         self.fixture_extra_args: Dict[str, List[str]] = {

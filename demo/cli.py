@@ -12,6 +12,7 @@ from .obfuscation_test_runner import ObfuscationTestRunner
 _ALL_FIXTURES = [
     "poisoned", "clean", "markdown_table", "yaml", "base64", "homoglyph",
     "bidi", "steganography", "latent", "toolshaping", "canary",
+    "confused_deputy", "supply_chain",
 ]
 _DEFAULT_CACHE = "fixtures/llm_cache/default.jsonl"
 
@@ -87,6 +88,14 @@ def build_parser() -> argparse.ArgumentParser:
             "For the latent trigger attack, use 'emergency diagnostics procedure' to fire the trigger."
         ),
     )
+    run_cmd.add_argument(
+        "--multi-tenant",
+        action="store_true",
+        help=(
+            "Enable cross-tenant memory bleed demo: Tenant A writes a poisoned note, "
+            "Tenant B's agent retrieves it (vulnerable) or is isolated (defended)."
+        ),
+    )
 
     reset_cmd = sub.add_parser("reset", help="Reset demo state")
     reset_cmd.add_argument("--confirm", action="store_true", help="Confirm destructive reset")
@@ -131,6 +140,7 @@ def main(argv: list[str] | None = None) -> int:
             log_detail=args.log_detail,
             ui=args.ui,
             query=args.query,
+            multi_tenant=args.multi_tenant,
         )
         runner.run()
         return 0

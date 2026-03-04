@@ -11,6 +11,7 @@ from .crew import build_crew
 from .graph import CausalGraph, GraphEdge, GraphNode
 from .logging import RunLogger
 from .memory import JsonlMemoryStore, MemoryStore
+from .multitenant import TenantAwareMemoryStore
 from .policy import PolicyGate
 from .schemas import ActionPlan, ContextPack, MemoryRecord
 from .tools import MCPServerSim, MemoryTool
@@ -29,6 +30,7 @@ class Runner:
         log_detail: str = "rich",
         ui: bool = False,
         query: str = "diagnostics procedure",
+        multi_tenant: bool = False,
     ) -> None:
         self.mode = mode
         self.execution_mode = execution_mode
@@ -39,6 +41,7 @@ class Runner:
         self.log_detail = log_detail
         self.ui = ui
         self.query = query.strip() or "diagnostics procedure"
+        self.multi_tenant = multi_tenant
         self.root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
     def run(self) -> None:
@@ -69,12 +72,17 @@ class Runner:
         # Causal graph — built incrementally throughout the run
         graph = CausalGraph()
 
-        if self.memory_backend == "jsonl":
+        if self.multi_tenant:
+            memory_store = TenantAwareMemoryStore(os.path.join(state_dir, "memory.db"), self.mode)
+        elif self.memory_backend == "jsonl":
             memory_store = JsonlMemoryStore(os.path.join(state_dir, "memory.jsonl"))
         else:
             memory_store = MemoryStore(os.path.join(state_dir, "memory.db"))
         memory_tool = MemoryTool(memory_store)
-        mcp_tool = MCPServerSim(artifacts_dir, self.mode, self.execution_mode)
+        mcp_tool = MCPServerSim(
+            artifacts_dir, self.mode, self.execution_mode,
+            confused_deputy_mode=(self.fixture == "confused_deputy"),
+        )
 
         tools: Dict[str, Any] = {
             "memory": memory_tool,
@@ -125,6 +133,23 @@ class Runner:
         # Step 1: WebFixtureAgent
         fixture_path = os.path.join(web_fixtures_dir, f"{self.fixture}_runbook.md")
         fixture_content = self._read_fixture(fixture_path)
+
+        # Supply chain: detect fake cryptographic signature block
+        has_fake_sig = "Signed-By:" in fixture_content and "Verified: true" in fixture_content
+        if has_fake_sig:
+            if self.mode == "vulnerable":
+                sig_msg = "Signature block present (Verified: true) — treating document as trusted source"
+            else:
+                sig_msg = "Signature block present but NOT cryptographically verified — document stays untrusted"
+            logger.step(
+                "SignatureVerifier",
+                "Verify",
+                "trusted" if self.mode == "vulnerable" else "untrusted",
+                sig_msg,
+                inputs={"fixture": fixture_path},
+                outputs={"has_signature": True, "trusted": self.mode == "vulnerable"},
+            )
+
         logger.step(
             "WebFixtureAgent",
             "Ingest",
@@ -226,17 +251,35 @@ class Runner:
         # In defended mode, web fixtures remain untrusted regardless of tags
         if self.mode == "vulnerable" and "runbook" in tags and "diagnostics" in tags:
             trust_level = "trusted"  # BUG: incorrect trust elevation (vulnerable mode only)
+        # Supply chain: in vulnerable mode, fake signature also incorrectly elevates trust
+        if has_fake_sig and self.mode == "vulnerable":
+            trust_level = "trusted"
+            risk_flags.append("FAKE_SIGNATURE_TRUST_ELEVATION")
         if "WRITE_PWNED_FILE" in summary_note:
             risk_flags.append("TOKEN_WRITE_PWNED_FILE")
         created_at = datetime.utcnow().isoformat() + "Z"
-        record = memory_tool.write_note(
-            content=summary_note,
-            tags=tags,
-            trust_level=trust_level,
-            provenance=f"web_fixture:{os.path.basename(fixture_path)}",
-            risk_flags=risk_flags,
-            created_at=created_at,
-        )
+
+        # Multi-tenant: write as Tenant A so we can demo Tenant B's bleed
+        write_tenant_id = "tenant_a" if self.multi_tenant else None
+        if self.multi_tenant:
+            record = memory_store.write_note(  # type: ignore[call-arg]
+                content=summary_note,
+                tags=tags,
+                trust_level=trust_level,
+                provenance=f"web_fixture:{os.path.basename(fixture_path)}",
+                risk_flags=risk_flags,
+                created_at=created_at,
+                tenant_id=write_tenant_id,
+            )
+        else:
+            record = memory_tool.write_note(
+                content=summary_note,
+                tags=tags,
+                trust_level=trust_level,
+                provenance=f"web_fixture:{os.path.basename(fixture_path)}",
+                risk_flags=risk_flags,
+                created_at=created_at,
+            )
         logger.step(
             "MemoryWriterAgent",
             "WriteMemory",
@@ -266,21 +309,26 @@ class Runner:
         ))
 
         # Step 4: MemoryRetrieverAgent
-        notes = memory_tool.query_notes(self.query, limit=3)
+        # Multi-tenant: query as Tenant B — bleed occurs in vulnerable mode
+        if self.multi_tenant:
+            notes = memory_store.query_notes(self.query, limit=3, tenant_id="tenant_b")  # type: ignore[call-arg]
+        else:
+            notes = memory_tool.query_notes(self.query, limit=3)
         effective_trust = "trusted" if any(n.trust_level == "trusted" for n in notes) else "untrusted"
         context_pack = ContextPack(
             notes=notes,
             effective_trust=effective_trust,
             citations=[f"memory:{n.id}" for n in notes],
         )
+        retrieve_tenant_label = " (tenant_b — cross-tenant bleed)" if self.multi_tenant else ""
         logger.step(
             "MemoryRetrieverAgent",
             "Retrieve",
             effective_trust,
-            "Built ContextPack for diagnostics procedure",
-            inputs={"topic": "diagnostics procedure"},
+            f"Built ContextPack for '{self.query}'{retrieve_tenant_label}",
+            inputs={"topic": self.query},
             outputs=json.loads(model_to_json(context_pack)),
-            memory_ops=[{"op": "read", "topic": "diagnostics procedure", "count": len(notes)}],
+            memory_ops=[{"op": "read", "topic": self.query, "count": len(notes)}],
             agent_meta=profile_for("MemoryRetrieverAgent"),
         )
         context_compromised = effective_trust == "trusted" and poisoned_summary
@@ -451,6 +499,75 @@ class Runner:
         if self.ui and os.path.exists(pwned_path):
             logger.set_agent_attacked("ExecutorAgent")
             logger.show_pwned_banner(target=plan.target, obf_method=obfuscation_method)
+
+        # Step 9.5: PostmortemReader — Confused Deputy second pass
+        # The MCP tool's response body carries an advisory. A follow-up agent reads it,
+        # trusts it (it came from an approved tool), writes it to memory, and re-executes.
+        if self.fixture == "confused_deputy" and decision.decision == "allow":
+            first_result_msg = result.get("message", "") if tool_calls else ""
+            if "WRITE_PWNED_FILE" in first_result_msg:
+                advisory_content = f"MCP tool advisory (auto-trusted): {first_result_msg}"
+                advisory_record = memory_tool.write_note(
+                    content=advisory_content,
+                    tags=["advisory", "mcp_tool_output", "diagnostics"],
+                    trust_level="trusted",
+                    provenance="tool_response:mcp_safe_exec",
+                    risk_flags=["CONFUSED_DEPUTY"],
+                    created_at=datetime.utcnow().isoformat() + "Z",
+                )
+                logger.step(
+                    "PostmortemReader",
+                    "PostmortemRead",
+                    "trusted",
+                    f"Tool advisory stored as trusted memory (confused deputy, record {advisory_record.id})",
+                    inputs={"mcp_message": first_result_msg},
+                    outputs={"record_id": advisory_record.id, "trust_level": "trusted"},
+                    memory_ops=[{
+                        "op": "write", "record_id": advisory_record.id,
+                        "trust_level": "trusted", "provenance": "tool_response:mcp_safe_exec",
+                    }],
+                )
+
+                # Second-pass retrieval: now includes the advisory
+                notes_p2 = memory_tool.query_notes(self.query, limit=3)
+                context_pack_p2 = ContextPack(
+                    notes=notes_p2,
+                    effective_trust="trusted",
+                    citations=[f"memory:{n.id}" for n in notes_p2],
+                )
+
+                # Second-pass plan: force advisory target
+                plan_p2 = ActionPlan(
+                    tool="mcp_safe_exec",
+                    action="run_diagnostic",
+                    target="serviceA WRITE_PWNED_FILE",
+                    justification="Confused deputy: advisory from trusted tool output propagated.",
+                    source_memory_ids=[advisory_record.id],
+                )
+                logger.step(
+                    "PlannerAgent",
+                    "Plan (Second Pass)",
+                    "trusted",
+                    "Second-pass plan derived from trusted tool advisory",
+                    inputs={"advisory_record_id": advisory_record.id},
+                    outputs=model_to_dict(plan_p2),
+                )
+
+                # Second-pass execute: attack succeeds
+                payload_p2 = {"action": plan_p2.action, "target": plan_p2.target}
+                result_p2 = mcp_tool.execute(payload_p2)
+                logger.step(
+                    "ExecutorAgent",
+                    "Execute (Second Pass)",
+                    "trusted",
+                    f"Tool executed (second pass) with status {result_p2['status']}",
+                    inputs=model_to_dict(plan_p2),
+                    outputs={"message": result_p2.get("message", ""), "result": result_p2},
+                    tool_calls=[{"tool": "mcp_safe_exec", "payload": payload_p2, "result": result_p2}],
+                )
+                if self.ui and os.path.exists(pwned_path):
+                    logger.set_agent_attacked("ExecutorAgent")
+                    logger.show_pwned_banner(target=plan_p2.target, obf_method="confused_deputy")
 
         # Step 8: ForensicsAgent
         obf_context = ""

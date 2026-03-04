@@ -17,6 +17,7 @@ class MemoryRecord(BaseModel):
     provenance: str
     risk_flags: List[str] = Field(default_factory=list)
     created_at: str
+    tenant_id: Optional[str] = None
 
 
 class ContextPack(BaseModel):
