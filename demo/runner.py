@@ -112,6 +112,7 @@ class Runner:
         mcp_tool = MCPServerSim(
             artifacts_dir, self.mode, self.execution_mode,
             confused_deputy_mode=(self.fixture == "confused_deputy"),
+            fixture=self.fixture,
         )
 
         tools: Dict[str, Any] = {

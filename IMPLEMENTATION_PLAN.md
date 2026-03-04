@@ -871,13 +871,13 @@ person in the room recognizes from their own organization.
 - [x] Add all 4 scenarios to `--fixture` choices in `demo/cli.py`
   - [x] `"scenario_github"`, `"scenario_confluence"`, `"scenario_npm"`, `"scenario_slack"`
 
-- [ ] Modify `demo/tools.py` — `_write_pwned()`
-  - [ ] Accept `scenario: Optional[str] = None` parameter
-  - [ ] When scenario is set, customize the "WHAT HAPPENED" narrative:
-    - [ ] github: "An AI code reviewer read a malicious PR description..."
-    - [ ] confluence: "An AI SRE assistant read an attacker-modified Confluence runbook..."
-    - [ ] npm: "An AI dev assistant read a malicious npm package README..."
-    - [ ] slack: "An AI incident responder read an attacker-injected Slack alert..."
+- [x] Modify `demo/tools.py` — `_write_pwned()`
+  - [x] Accept `scenario: Optional[str] = None` parameter
+  - [x] When scenario is set, customize the "WHAT HAPPENED" narrative:
+    - [x] github: "An AI code reviewer read a malicious PR description..."
+    - [x] confluence: "An AI SRE assistant read an attacker-modified Confluence runbook..."
+    - [x] npm: "An AI dev assistant read a malicious npm package README..."
+    - [x] slack: "An AI incident responder read an attacker-injected Slack alert..."
 
 ---
 
