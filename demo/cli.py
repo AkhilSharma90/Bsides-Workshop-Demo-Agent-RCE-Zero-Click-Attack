@@ -108,6 +108,19 @@ def build_parser() -> argparse.ArgumentParser:
             "none=bypass, interactive=prompt, auto-deny=always block, auto-approve=always allow"
         ),
     )
+    run_cmd.add_argument(
+        "--isolation",
+        action="store_true",
+        help=(
+            "Model isolation (defended mode only): prepend sanitizer/planner system prompts "
+            "to strip instruction-like content before summarization and planning."
+        ),
+    )
+    run_cmd.add_argument(
+        "--capture-llm",
+        action="store_true",
+        help="Capture all LLM prompts and responses to runs/<id>/llm_calls.jsonl",
+    )
 
     reset_cmd = sub.add_parser("reset", help="Reset demo state")
     reset_cmd.add_argument("--confirm", action="store_true", help="Confirm destructive reset")
@@ -159,6 +172,8 @@ def main(argv: list[str] | None = None) -> int:
             query=args.query,
             multi_tenant=args.multi_tenant,
             approval=args.approval,
+            isolation=args.isolation,
+            capture_llm=args.capture_llm,
         )
         runner.run()
         return 0

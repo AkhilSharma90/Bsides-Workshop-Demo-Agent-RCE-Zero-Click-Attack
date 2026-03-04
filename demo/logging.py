@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import time
@@ -31,6 +32,7 @@ class RunLogger:
         detail: str = "rich",
         max_detail_chars: int = 800,
         ui_mode: bool = False,
+        capture_llm: bool = False,
     ) -> None:
         self.run_dir = run_dir
         self.mode = mode
@@ -38,8 +40,12 @@ class RunLogger:
         self.detail = detail
         self.max_detail_chars = max(200, max_detail_chars)
         self.trace_path = os.path.join(run_dir, "trace.jsonl")
+        self.llm_calls_path = os.path.join(run_dir, "llm_calls.jsonl")
         self.timeline_entries: List[str] = []
         self._seen_agents: set[str] = set()
+        self.capture_llm = capture_llm
+        # Per-step trust tracking for heatmap
+        self._step_trust: List[Dict[str, str]] = []
         os.makedirs(run_dir, exist_ok=True)
 
         # Rich TUI state (only used when ui_mode=True)
@@ -238,6 +244,19 @@ class RunLogger:
             atlas_context["decision"] = outputs.get("decision", "")
         atlas_tags = tag_event(step, atlas_context)
 
+        # Phase 8.3: Track trust per step for heatmap
+        risk_flags_str = ""
+        if outputs:
+            rf = outputs.get("risk_flags", [])
+            if isinstance(rf, list):
+                risk_flags_str = " ".join(rf)
+        self._step_trust.append({
+            "agent": agent,
+            "trust": trust,
+            "risk_flags": risk_flags_str,
+            "pwned": bool(tool_calls and any("pwned" in str(tc).lower() for tc in tool_calls)),
+        })
+
         # Always write to trace and timeline (regardless of ui_mode)
         event = TraceEvent(
             ts=datetime.utcnow().isoformat() + "Z",
@@ -284,12 +303,54 @@ class RunLogger:
         with open(self.trace_path, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(event, ensure_ascii=True) + "\n")
 
+    def log_llm_call(
+        self,
+        task_name: str,
+        prompt: str,
+        response: str,
+        model: str = "",
+        latency_ms: int = 0,
+    ) -> None:
+        """Phase 8.2: Record LLM prompt/response to llm_calls.jsonl."""
+        if not self.capture_llm:
+            return
+        token_estimate = int(len(prompt.split()) * 1.3 + len(response.split()) * 1.3)
+        entry = {
+            "task_name": task_name,
+            "prompt_hash": hashlib.sha256(prompt.encode()).hexdigest()[:12],
+            "prompt": prompt,
+            "response": response,
+            "model": model,
+            "latency_ms": latency_ms,
+            "token_estimate": token_estimate,
+            "ts": datetime.utcnow().isoformat() + "Z",
+        }
+        with open(self.llm_calls_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(entry, ensure_ascii=True) + "\n")
+
     def write_timeline(self) -> None:
         timeline_path = os.path.join(self.run_dir, "timeline.md")
         with open(timeline_path, "w", encoding="utf-8") as handle:
             handle.write("# Timeline\n\n")
             for entry in self.timeline_entries:
                 handle.write(entry + "\n")
+            # Phase 8.3: Append trust heatmap
+            if self._step_trust:
+                handle.write("\n## Trust Heatmap\n\n")
+                handle.write("```\n")
+                handle.write(f"{'Step':<26} {'Trust':<12} {'Risk'}\n")
+                handle.write("-" * 56 + "\n")
+                for row in self._step_trust:
+                    agent = row["agent"][:25]
+                    trust = row["trust"]
+                    risk_flags = row.get("risk_flags", "")
+                    bar = "████████" if trust == "trusted" else "░░░░░░░░"
+                    escalation = " <- ESCALATION BUG" if "TOKEN_WRITE_PWNED_FILE" in risk_flags else ""
+                    pwned = " <- PWNED" if row.get("pwned") else ""
+                    handle.write(
+                        f"{agent:<26} {trust:<12} {bar}{escalation}{pwned}\n"
+                    )
+                handle.write("```\n")
 
     def _maybe_pause(self) -> None:
         if self.pace_seconds > 0:
