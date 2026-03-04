@@ -183,72 +183,54 @@ with threat intelligence teams.
 
 ### 2.1 MITRE ATLAS Auto-Tagging
 
-- [ ] Create `demo/atlas.py`
-  - [ ] Define `ATLAS_MAP: Dict[str, List[str]]` mapping step names to technique IDs:
-    - [ ] `"web_fixture_ingest"` → `["AML.T0010.000"]` (ML Supply Chain Compromise)
-    - [ ] `"trust_elevation_bug"` → `["AML.T0043.003"]` (Craft Adversarial Data)
-    - [ ] `"memory_write"` → `["AML.T0016"]` (Obtain Capabilities - indirect)
-    - [ ] `"policy_bypass"` → `["AML.T0040"]` (ML Model Inference API Access)
-    - [ ] `"privileged_exec"` → `["T1059"]` (Command and Scripting Interpreter)
-    - [ ] `"obfuscation_base64"` → `["T1027.001"]` (Binary Padding)
-    - [ ] `"obfuscation_homoglyph"` → `["T1036.003"]` (Masquerading)
-    - [ ] `"obfuscation_bidi"` → `["T1036"]` (Masquerading)
-    - [ ] `"obfuscation_steganography"` → `["T1027"]` (Obfuscated Files or Information)
-    - [ ] `"canary_exfil"` → `["T1041"]` (Exfiltration Over C2 Channel)
-    - [ ] `"latent_trigger"` → `["T1053"]` (Scheduled Task/Job - conceptual mapping)
-    - [ ] `"confused_deputy"` → `["T1078"]` (Valid Accounts - trusted channel abuse)
-    - [ ] `"rag_poisoning"` → `["AML.T0020"]` (Poison Training Data)
-  - [ ] Define `ATLASEntry` dataclass: `technique_id`, `technique_name`, `tactic`, `url`
-  - [ ] Define `ATLAS_REGISTRY: Dict[str, ATLASEntry]` with full names and tactic context
-  - [ ] Implement `tag_event(step_name: str, context: dict) -> List[str]`
-    - [ ] Returns list of technique IDs relevant to this step
-    - [ ] Checks context for obfuscation_method to add obfuscation-specific tags
-  - [ ] Implement `build_atlas_table(events: List[TraceEvent]) -> str`
-    - [ ] Returns a Markdown table: `| Step | Agent | ATLAS Technique | Tactic |`
-    - [ ] One row per unique technique encountered
+- [x] Create `demo/atlas.py`
+  - [x] Define `ATLAS_MAP: Dict[str, List[str]]` mapping step names to technique IDs
+  - [x] All 13 techniques defined (AML + ATT&CK)
+  - [x] Define `ATLASEntry` dataclass: `technique_id`, `technique_name`, `tactic`, `url`
+  - [x] Define `ATLAS_REGISTRY: Dict[str, ATLASEntry]` with full names and tactic context
+  - [x] Implement `tag_event(step_name: str, context: dict) -> List[str]`
+    - [x] Returns list of technique IDs relevant to this step
+    - [x] Checks context for obfuscation_method to add obfuscation-specific tags
+    - [x] Detects trust elevation bug and policy bypass automatically
+  - [x] Implement `build_atlas_table(events: List[TraceEvent]) -> str`
+    - [x] Returns a Markdown table: `| Step | Agent | ATLAS Technique | Tactic |`
+    - [x] One row per unique technique encountered
 
-- [ ] Modify `demo/schemas.py`
-  - [ ] Add `atlas_tags: List[str] = Field(default_factory=list)` to `TraceEvent`
+- [x] Modify `demo/schemas.py`
+  - [x] Add `atlas_tags: List[str] = Field(default_factory=list)` to `TraceEvent`
 
-- [ ] Modify `demo/logging.py`
-  - [ ] Import `atlas.tag_event`
-  - [ ] In `step()`: compute atlas tags from step name + obfuscation_method, add to `TraceEvent`
+- [x] Modify `demo/logging.py`
+  - [x] Import `atlas.tag_event`
+  - [x] In `step()`: compute atlas tags from step name + obfuscation_method, add to `TraceEvent`
 
-- [ ] Modify `demo/runner.py`
-  - [ ] After `logger.write_timeline()`: call `atlas.build_atlas_table(events)` and write to `runs/<id>/atlas_mapping.md`
-  - [ ] Print path to `atlas_mapping.md` in final output
+- [x] Modify `demo/runner.py`
+  - [x] After `logger.write_timeline()`: call `atlas.build_atlas_table(events)` and write to `runs/<id>/atlas_mapping.md`
+  - [x] Print path to `atlas_mapping.md` in final output
 
 - [ ] Test: `cat runs/latest/atlas_mapping.md` shows a populated table for a vulnerable run
 
 ### 2.2 Causal Graph Export
 
-- [ ] Create `demo/graph.py`
-  - [ ] Define `GraphNode` dataclass: `id`, `label`, `node_type` (file/agent/memory/tool), `trust`, `compromised: bool`
-  - [ ] Define `GraphEdge` dataclass: `src`, `dst`, `label`, `tainted: bool`
-  - [ ] Define `CausalGraph` class
-    - [ ] `add_node(node: GraphNode) -> None`
-    - [ ] `add_edge(edge: GraphEdge) -> None`
-    - [ ] `to_dot() -> str` — renders full DOT source
-      - [ ] Color compromised nodes red (`fillcolor=red`)
-      - [ ] Color tainted edges red (`color=red`)
-      - [ ] Color clean/trusted nodes green (`fillcolor=lightgreen`)
-      - [ ] Color untrusted nodes yellow (`fillcolor=lightyellow`)
-      - [ ] Add legend subgraph (small, bottom-right)
-    - [ ] `write(path: str) -> None` — writes `.dot` file
-    - [ ] `try_render_svg(dot_path: str) -> Optional[str]` — calls `dot -Tsvg` if Graphviz available, returns svg path or None
+- [x] Create `demo/graph.py`
+  - [x] Define `GraphNode` dataclass: `id`, `label`, `node_type` (file/agent/memory/data/tool/decision), `trust`, `compromised: bool`
+  - [x] Define `GraphEdge` dataclass: `src`, `dst`, `label`, `tainted: bool`
+  - [x] Define `CausalGraph` class
+    - [x] `add_node(node: GraphNode) -> None`
+    - [x] `add_edge(edge: GraphEdge) -> None`
+    - [x] `to_dot() -> str` — renders full DOT source
+      - [x] Color compromised nodes tomato/red (`fillcolor=tomato`)
+      - [x] Color tainted edges red (`color=red, style=dashed`)
+      - [x] Color trusted nodes green (`fillcolor=lightgreen`)
+      - [x] Color untrusted nodes yellow (`fillcolor=lightyellow`)
+      - [x] Add legend subgraph
+    - [x] `write(path: str) -> None` — writes `.dot` file
+    - [x] `try_render_svg(dot_path: str) -> Optional[str]` — calls `dot -Tsvg` if Graphviz available
 
-- [ ] Modify `demo/runner.py`
-  - [ ] Build `CausalGraph` incrementally as each step completes:
-    - [ ] After step 1: add node `web_fixture_file` (type=file, trust=untrusted)
-    - [ ] After step 2: add node `SummarizerAgent`, add edge `web_fixture → SummarizerAgent` (label="read")
-    - [ ] After step 3: add node `MemRecord_{id}` (trust=actual trust_level), add edges from summarizer → mem record; if trust was elevated, mark edge tainted
-    - [ ] After step 4: add node `ContextPack` (trust=effective_trust), add edge mem_record → context_pack
-    - [ ] After step 5: add node `PolicyDecision` (label includes decision), add edge
-    - [ ] After step 6: add node `ActionPlan` (label includes target), mark compromised if target contains poison
-    - [ ] After step 7: add node `MCPTool` (compromised if pwned), add edge from action_plan
-  - [ ] After all steps: call `graph.write(runs/<id>/causal_graph.dot)` and `graph.try_render_svg()`
-  - [ ] Print path to causal_graph.dot in final output
-  - [ ] If SVG rendered successfully, print path to SVG too
+- [x] Modify `demo/runner.py`
+  - [x] Build `CausalGraph` incrementally: web_fixture → SummarizerAgent → MemRecord → ContextPack → PolicyDecision → ActionPlan → MCPTool
+  - [x] Mark compromised/tainted based on poisoned_summary, trust_elevated, plan_compromised, mcp_pwned
+  - [x] Write `runs/<id>/causal_graph.dot` and attempt SVG render
+  - [x] Print paths in final output
 
 - [ ] Test: `dot -Tsvg runs/latest/causal_graph.dot` produces valid SVG (if Graphviz installed)
 - [ ] Test: compromised nodes are red in the DOT output for a vulnerable run

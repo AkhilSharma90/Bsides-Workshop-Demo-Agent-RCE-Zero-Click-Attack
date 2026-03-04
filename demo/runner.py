@@ -6,7 +6,9 @@ import shutil
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from .atlas import build_atlas_table
 from .crew import build_crew
+from .graph import CausalGraph, GraphEdge, GraphNode
 from .logging import RunLogger
 from .memory import JsonlMemoryStore, MemoryStore
 from .policy import PolicyGate
@@ -61,6 +63,9 @@ class Runner:
         if self.ui and logger._attack_state is not None:
             logger._attack_state.fixture = self.fixture
         logger.banner(f"BSides CrewAI Demo - {self.mode.upper()} MODE")
+
+        # Causal graph — built incrementally throughout the run
+        graph = CausalGraph()
 
         if self.memory_backend == "jsonl":
             memory_store = JsonlMemoryStore(os.path.join(state_dir, "memory.jsonl"))
@@ -128,6 +133,14 @@ class Runner:
             tool_calls=[{"tool": "web_fixture_read", "path": fixture_path}],
             agent_meta=profile_for("WebFixtureAgent"),
         )
+        graph.add_node(GraphNode(
+            id="web_fixture", label=os.path.basename(fixture_path),
+            node_type="file", trust="untrusted",
+        ))
+        graph.add_node(GraphNode(
+            id="WebFixtureAgent", label="WebFixtureAgent", node_type="agent", trust="untrusted",
+        ))
+        graph.add_edge(GraphEdge(src="web_fixture", dst="WebFixtureAgent", label="read"))
 
         # Step 2: SummarizerAgent
         summarize_prompt = (
@@ -153,6 +166,15 @@ class Runner:
             outputs={"summary": summary_note, "llm": llm_meta},
             agent_meta=profile_for("SummarizerAgent"),
         )
+        poisoned_summary = "WRITE_PWNED_FILE" in summary_note
+        graph.add_node(GraphNode(
+            id="SummarizerAgent", label="SummarizerAgent", node_type="agent", trust="untrusted",
+            compromised=poisoned_summary,
+        ))
+        graph.add_edge(GraphEdge(
+            src="WebFixtureAgent", dst="SummarizerAgent", label="summarize",
+            tainted=poisoned_summary,
+        ))
 
         # Step 3: MemoryWriterAgent
         tags = ["runbook", "diagnostics"]
@@ -191,6 +213,15 @@ class Runner:
             ],
             agent_meta=profile_for("MemoryWriterAgent"),
         )
+        trust_elevated = trust_level == "trusted" and poisoned_summary
+        graph.add_node(GraphNode(
+            id=f"MemRecord_{record.id}", label=f"MemRecord #{record.id}\n[{trust_level}]",
+            node_type="memory", trust=trust_level, compromised=trust_elevated,
+        ))
+        graph.add_edge(GraphEdge(
+            src="SummarizerAgent", dst=f"MemRecord_{record.id}", label="write",
+            tainted=trust_elevated,
+        ))
 
         # Step 4: MemoryRetrieverAgent
         notes = memory_tool.query_notes("diagnostics procedure", limit=3)
@@ -210,6 +241,16 @@ class Runner:
             memory_ops=[{"op": "read", "topic": "diagnostics procedure", "count": len(notes)}],
             agent_meta=profile_for("MemoryRetrieverAgent"),
         )
+        context_compromised = effective_trust == "trusted" and poisoned_summary
+        graph.add_node(GraphNode(
+            id="ContextPack", label=f"ContextPack\n[{effective_trust}]",
+            node_type="data", trust=effective_trust, compromised=context_compromised,
+        ))
+        for note in notes:
+            graph.add_edge(GraphEdge(
+                src=f"MemRecord_{note.id}", dst="ContextPack", label="retrieve",
+                tainted=context_compromised,
+            ))
 
         # Step 5: PolicyGateAgent
         policy_gate = PolicyGate(self.mode)
@@ -224,6 +265,17 @@ class Runner:
             outputs=model_to_dict(decision),
             agent_meta=profile_for("PolicyGateAgent"),
         )
+        policy_bypassed = decision.decision == "allow" and context_compromised
+        graph.add_node(GraphNode(
+            id="PolicyDecision",
+            label=f"PolicyDecision\n[{decision.decision.upper()}]",
+            node_type="decision", trust="trusted",
+            compromised=policy_bypassed,
+        ))
+        graph.add_edge(GraphEdge(
+            src="ContextPack", dst="PolicyDecision", label="evaluate",
+            tainted=policy_bypassed,
+        ))
 
         # Show blocked banner immediately when defense fires
         if self.ui and decision.decision != "allow":
@@ -281,6 +333,17 @@ class Runner:
             outputs={**model_to_dict(plan), "llm": llm_meta, "llm_error": plan_error},
             agent_meta=profile_for("PlannerAgent"),
         )
+        plan_compromised = "WRITE_PWNED_FILE" in plan.target
+        graph.add_node(GraphNode(
+            id="ActionPlan",
+            label=f"ActionPlan\ntarget: {plan.target[:30]}",
+            node_type="data", trust=context_pack.effective_trust,
+            compromised=plan_compromised,
+        ))
+        graph.add_edge(GraphEdge(
+            src="PolicyDecision", dst="ActionPlan", label="conditioned on allow",
+            tainted=plan_compromised,
+        ))
 
         # Step 7: ExecutorAgent
         tool_calls: List[Dict[str, Any]] = []
@@ -309,6 +372,16 @@ class Runner:
             agent_meta=profile_for("ExecutorAgent"),
             obfuscation_method=obfuscation_method,
         )
+        mcp_pwned = os.path.exists(os.path.join(artifacts_dir, "pwned.txt"))
+        graph.add_node(GraphNode(
+            id="MCPTool", label="MCPServerSim\n(mcp_safe_exec)",
+            node_type="tool", trust="trusted",
+            compromised=mcp_pwned,
+        ))
+        graph.add_edge(GraphEdge(
+            src="ActionPlan", dst="MCPTool", label="execute",
+            tainted=mcp_pwned,
+        ))
 
         # Show PWNED banner when the attack succeeded
         pwned_path = os.path.join(artifacts_dir, "pwned.txt")
@@ -378,6 +451,19 @@ class Runner:
         logger.write_timeline()
         memory_store.close()
 
+        # Write causal graph DOT file
+        dot_path = os.path.join(run_dir, "causal_graph.dot")
+        graph.write(dot_path)
+        svg_path = graph.try_render_svg(dot_path)
+
+        # Write ATLAS mapping table
+        atlas_path = os.path.join(run_dir, "atlas_mapping.md")
+        trace_events = self._load_trace_events(logger.trace_path)
+        atlas_md = build_atlas_table(trace_events)
+        with open(atlas_path, "w", encoding="utf-8") as fh:
+            fh.write("# MITRE ATLAS / ATT&CK Technique Mapping\n\n")
+            fh.write(atlas_md)
+
         # Stop Rich Live display before final banner
         if self.ui:
             logger.stop_ui()
@@ -388,6 +474,27 @@ class Runner:
             print(f"Artifacts: pwned.txt written -> {pwned_path}")
         else:
             print("Artifacts: pwned.txt not present (unexpected; check LLM output/policy)")
+        print(f"Causal graph: {dot_path}")
+        if svg_path:
+            print(f"Causal graph SVG: {svg_path}")
+        print(f"ATLAS mapping: {atlas_path}")
+
+    @staticmethod
+    def _load_trace_events(trace_path: str) -> List[Dict[str, Any]]:
+        """Load trace events from trace.jsonl as dicts."""
+        events: List[Dict[str, Any]] = []
+        if not os.path.exists(trace_path):
+            return events
+        with open(trace_path, "r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    events.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+        return events
 
     def reset(self) -> None:
         for dirname in ["state", "runs", "artifacts"]:

@@ -59,3 +59,4 @@ class TraceEvent(BaseModel):
     memory_ops: List[dict] = Field(default_factory=list)
     tool_calls: List[dict] = Field(default_factory=list)
     obfuscation_method: Optional[str] = None
+    atlas_tags: List[str] = Field(default_factory=list)

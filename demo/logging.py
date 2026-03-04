@@ -6,6 +6,7 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from .atlas import tag_event
 from .schemas import TraceEvent
 from .utils import model_to_dict
 
@@ -230,6 +231,13 @@ class RunLogger:
                 self._print_detail("agent_profile", agent_meta)
                 self._seen_agents.add(agent)
 
+        # Compute ATLAS/ATT&CK tags for this step
+        atlas_context: dict = {"obfuscation_method": obfuscation_method}
+        if outputs:
+            atlas_context["trust_level"] = outputs.get("trust_level", trust)
+            atlas_context["decision"] = outputs.get("decision", "")
+        atlas_tags = tag_event(step, atlas_context)
+
         # Always write to trace and timeline (regardless of ui_mode)
         event = TraceEvent(
             ts=datetime.utcnow().isoformat() + "Z",
@@ -240,6 +248,7 @@ class RunLogger:
             memory_ops=memory_ops or [],
             tool_calls=tool_calls or [],
             obfuscation_method=obfuscation_method,
+            atlas_tags=atlas_tags,
         )
         self._append_trace(model_to_dict(event))
         timeline_msg = f"- **{agent}**: {message}"
