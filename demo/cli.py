@@ -9,7 +9,10 @@ from dotenv import load_dotenv
 from .runner import Runner
 from .obfuscation_test_runner import ObfuscationTestRunner
 
-_ALL_FIXTURES = ["poisoned", "clean", "markdown_table", "yaml", "base64", "homoglyph", "bidi", "steganography"]
+_ALL_FIXTURES = [
+    "poisoned", "clean", "markdown_table", "yaml", "base64", "homoglyph",
+    "bidi", "steganography", "latent", "toolshaping", "canary",
+]
 _DEFAULT_CACHE = "fixtures/llm_cache/default.jsonl"
 
 
@@ -75,6 +78,15 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Enable Rich TUI: animated agent pipeline, live output panel, and finale banners",
     )
+    run_cmd.add_argument(
+        "--query",
+        default="diagnostics procedure",
+        metavar="QUERY",
+        help=(
+            "Memory retrieval query used by MemoryRetrieverAgent (default: 'diagnostics procedure'). "
+            "For the latent trigger attack, use 'emergency diagnostics procedure' to fire the trigger."
+        ),
+    )
 
     reset_cmd = sub.add_parser("reset", help="Reset demo state")
     reset_cmd.add_argument("--confirm", action="store_true", help="Confirm destructive reset")
@@ -118,6 +130,7 @@ def main(argv: list[str] | None = None) -> int:
             pace_seconds=args.pace,
             log_detail=args.log_detail,
             ui=args.ui,
+            query=args.query,
         )
         runner.run()
         return 0
