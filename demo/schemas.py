@@ -18,6 +18,9 @@ class MemoryRecord(BaseModel):
     risk_flags: List[str] = Field(default_factory=list)
     created_at: str
     tenant_id: Optional[str] = None
+    taint_chain: List[str] = Field(default_factory=list)
+    content_hash: str = ""
+    quarantined: bool = False
 
 
 class ContextPack(BaseModel):
@@ -38,6 +41,7 @@ class ActionPlan(BaseModel):
     target: str
     justification: str
     source_memory_ids: List[int]
+    taint_chain: List[str] = Field(default_factory=list)
 
 
 class MCPPayload(BaseModel):
@@ -61,3 +65,4 @@ class TraceEvent(BaseModel):
     tool_calls: List[dict] = Field(default_factory=list)
     obfuscation_method: Optional[str] = None
     atlas_tags: List[str] = Field(default_factory=list)
+    taint_chain: List[str] = Field(default_factory=list)

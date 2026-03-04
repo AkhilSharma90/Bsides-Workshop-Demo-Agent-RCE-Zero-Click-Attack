@@ -14,6 +14,8 @@ _ALL_FIXTURES = [
     "bidi", "steganography", "latent", "toolshaping", "canary",
     "confused_deputy", "supply_chain",
     "rag_poisoned", "rag_ambiguity",
+    "scenarios/github_pr_comment", "scenarios/confluence_runbook",
+    "scenarios/npm_readme", "scenarios/slack_alert",
 ]
 _DEFAULT_CACHE = "fixtures/llm_cache/default.jsonl"
 
@@ -97,9 +99,23 @@ def build_parser() -> argparse.ArgumentParser:
             "Tenant B's agent retrieves it (vulnerable) or is isolated (defended)."
         ),
     )
+    run_cmd.add_argument(
+        "--approval",
+        choices=["none", "interactive", "auto-deny", "auto-approve"],
+        default="none",
+        help=(
+            "Human approval gate before tool execution: "
+            "none=bypass, interactive=prompt, auto-deny=always block, auto-approve=always allow"
+        ),
+    )
 
     reset_cmd = sub.add_parser("reset", help="Reset demo state")
     reset_cmd.add_argument("--confirm", action="store_true", help="Confirm destructive reset")
+
+    diff_cmd = sub.add_parser("diff", help="Compare two run traces")
+    diff_cmd.add_argument("run_a", metavar="RUN_DIR_A", help="Path to first run directory")
+    diff_cmd.add_argument("run_b", metavar="RUN_DIR_B", help="Path to second run directory")
+    diff_cmd.add_argument("--output", metavar="PATH", help="Write diff to file (default: stdout)")
 
     test_cmd = sub.add_parser("test-obfuscation", help="Run all obfuscation variant tests")
     test_cmd.add_argument("--memory", choices=["sqlite", "jsonl"], default="sqlite")
@@ -142,6 +158,7 @@ def main(argv: list[str] | None = None) -> int:
             ui=args.ui,
             query=args.query,
             multi_tenant=args.multi_tenant,
+            approval=args.approval,
         )
         runner.run()
         return 0
@@ -163,6 +180,26 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "record-cache":
         return _run_record_cache(args)
+
+    if args.command == "diff":
+        from .diff import load_trace, diff_traces, render_diff
+        trace_a = load_trace(args.run_a)
+        trace_b = load_trace(args.run_b)
+        if not trace_a:
+            print(f"Error: no trace.jsonl found in {args.run_a}", file=sys.stderr)
+            return 1
+        if not trace_b:
+            print(f"Error: no trace.jsonl found in {args.run_b}", file=sys.stderr)
+            return 1
+        diff = diff_traces(trace_a, trace_b)
+        report = render_diff(diff)
+        if args.output:
+            with open(args.output, "w", encoding="utf-8") as fh:
+                fh.write(report)
+            print(f"Diff written to {args.output}")
+        else:
+            print(report)
+        return 0
 
     parser.print_help()
     return 1

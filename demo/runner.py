@@ -6,6 +6,9 @@ import shutil
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+import hashlib
+
+from .approval import ApprovalGate
 from .atlas import build_atlas_table
 from .crew import build_crew
 from .graph import CausalGraph, GraphEdge, GraphNode
@@ -32,6 +35,7 @@ class Runner:
         ui: bool = False,
         query: str = "diagnostics procedure",
         multi_tenant: bool = False,
+        approval: str = "none",
     ) -> None:
         self.mode = mode
         self.execution_mode = execution_mode
@@ -43,6 +47,7 @@ class Runner:
         self.ui = ui
         self.query = query.strip() or "diagnostics procedure"
         self.multi_tenant = multi_tenant
+        self.approval = approval
         self.root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
     def run(self) -> None:
@@ -261,6 +266,11 @@ class Runner:
         if "WRITE_PWNED_FILE" in summary_note:
             risk_flags.append("TOKEN_WRITE_PWNED_FILE")
         created_at = datetime.utcnow().isoformat() + "Z"
+        # Taint tracking: compute hash that propagates through the pipeline
+        taint_hash = hashlib.sha256(
+            (summary_note + fixture_path + trust_level).encode("utf-8")
+        ).hexdigest()[:12]
+        taint_chain = [f"web_fixture:{taint_hash}"]
 
         # Multi-tenant: write as Tenant A so we can demo Tenant B's bleed
         write_tenant_id = "tenant_a" if self.multi_tenant else None
@@ -282,6 +292,26 @@ class Runner:
                 provenance=f"web_fixture:{os.path.basename(fixture_path)}",
                 risk_flags=risk_flags,
                 created_at=created_at,
+                taint_chain=taint_chain,
+            )
+
+        # Quarantine: in defended mode, quarantine poisoned untrusted records immediately
+        quarantined = False
+        if (
+            self.mode == "defended"
+            and trust_level == "untrusted"
+            and "TOKEN_WRITE_PWNED_FILE" in risk_flags
+            and hasattr(memory_store, "quarantine_note")
+        ):
+            memory_store.quarantine_note(record.id)
+            quarantined = True
+            logger.step(
+                "QuarantineAgent",
+                "Quarantine",
+                "trusted",
+                f"Record {record.id} quarantined — will not feed privileged tools",
+                inputs={"record_id": record.id, "risk_flags": risk_flags},
+                outputs={"quarantined": True},
             )
         logger.step(
             "MemoryWriterAgent",
@@ -455,6 +485,10 @@ class Runner:
             plan.target = "serviceA WRITE_PWNED_FILE"
         if not plan.source_memory_ids:
             plan.source_memory_ids = [n.id for n in notes]
+        # Propagate taint chain from source memory records into action plan
+        all_taints = list({t for n in notes for t in (n.taint_chain or [])})
+        if all_taints:
+            plan.taint_chain = all_taints
         logger.step(
             "PlannerAgent",
             "Plan",
@@ -476,11 +510,24 @@ class Runner:
             tainted=plan_compromised,
         ))
 
+        # Human Approval Gate (before executor)
+        approval_gate = ApprovalGate(self.approval)
+        human_approved = approval_gate.request(plan, context_pack, decision, notes=notes)
+        if not human_approved:
+            logger.step(
+                "ApprovalGate",
+                "Approve",
+                "trusted",
+                "HUMAN DENIED — execution prevented by approval gate",
+                inputs=model_to_dict(plan),
+                outputs={"approved": False, "mode": self.approval},
+            )
+
         # Step 7: ExecutorAgent
         tool_calls: List[Dict[str, Any]] = []
         exec_message = ""
         obfuscation_method: Optional[str] = None
-        if decision.decision == "allow" and plan.target != "REFUSED":
+        if decision.decision == "allow" and plan.target != "REFUSED" and human_approved:
             payload = {"action": plan.action, "target": plan.target}
             result = mcp_tool.execute(payload)
             tool_calls.append({"tool": "mcp_safe_exec", "payload": payload, "result": result})
@@ -663,6 +710,10 @@ class Runner:
         with open(atlas_path, "w", encoding="utf-8") as fh:
             fh.write("# MITRE ATLAS / ATT&CK Technique Mapping\n\n")
             fh.write(atlas_md)
+
+        # Write self-contained HTML report
+        from .report import write_report as _write_report
+        report_path = _write_report(run_dir, self.mode, self.fixture, run_id)
 
         # Stop Rich Live display before final banner
         if self.ui:
