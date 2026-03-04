@@ -311,13 +311,16 @@ class RunLogger:
         model: str = "",
         latency_ms: int = 0,
     ) -> None:
-        """Phase 8.2: Record LLM prompt/response to llm_calls.jsonl."""
+        """Phase 8.2: Record LLM prompt/response to llm_calls.jsonl.
+        Backlog: includes integrity_hash = sha256(prompt + response) for tamper detection."""
         if not self.capture_llm:
             return
         token_estimate = int(len(prompt.split()) * 1.3 + len(response.split()) * 1.3)
+        integrity_hash = hashlib.sha256((prompt + response).encode()).hexdigest()[:16]
         entry = {
             "task_name": task_name,
             "prompt_hash": hashlib.sha256(prompt.encode()).hexdigest()[:12],
+            "integrity_hash": integrity_hash,
             "prompt": prompt,
             "response": response,
             "model": model,

@@ -130,7 +130,16 @@ class CausalGraph:
         Returns the SVG file path on success, or None if Graphviz is not
         available or rendering fails.
         """
+        import shutil as _shutil
         svg_path = dot_path.rsplit(".dot", 1)[0] + ".svg"
+        if _shutil.which("dot") is None:
+            print(
+                "  [graph] Graphviz 'dot' binary not found — skipping SVG render.\n"
+                "  Install Graphviz to enable: https://graphviz.org/download/\n"
+                "  On macOS: brew install graphviz\n"
+                "  On Ubuntu: sudo apt install graphviz"
+            )
+            return None
         try:
             result = subprocess.run(
                 ["dot", "-Tsvg", dot_path, "-o", svg_path],

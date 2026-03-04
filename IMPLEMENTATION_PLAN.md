@@ -980,12 +980,12 @@ their CI pipelines.
 
 These are from `future_additions.md` that are real but lower workshop impact:
 
-- [ ] **LLM call integrity hashes** — store `sha256(prompt + response)` in trace for tamper detection
+- [x] **LLM call integrity hashes** — store `sha256(prompt + response)` in trace for tamper detection
 - [ ] **Retrieval ambiguity attack** — two near-identical runbook entries, different targets; show which one wins retrieval (partially covered by Phase 6.1 rag_ambiguity fixture)
 - [ ] **Multi-model comparison full implementation** — parallel runs with different providers, quantitative comparison of attack success rate by model (Phase 11.3 is a simpler version)
 - [ ] **Cross-agent model isolation test** — put summarizer on one model family, planner on another, show that model choice affects propagation
 - [ ] **Causal graph SVG in HTML report** — embed the rendered SVG directly in the HTML report (Phase 11.1 + Phase 2.2 integration)
-- [ ] **Graphviz auto-install check** — print friendly message if `dot` binary not found, with install instructions
+- [x] **Graphviz auto-install check** — print friendly message if `dot` binary not found, with install instructions
 
 ---
 
