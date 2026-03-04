@@ -13,6 +13,7 @@ _ALL_FIXTURES = [
     "poisoned", "clean", "markdown_table", "yaml", "base64", "homoglyph",
     "bidi", "steganography", "latent", "toolshaping", "canary",
     "confused_deputy", "supply_chain",
+    "rag_poisoned", "rag_ambiguity",
 ]
 _DEFAULT_CACHE = "fixtures/llm_cache/default.jsonl"
 
@@ -22,7 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     run_cmd = sub.add_parser("run", help="Run the demo")
-    run_cmd.add_argument("--memory", choices=["sqlite", "jsonl"], default="sqlite")
+    run_cmd.add_argument("--memory", choices=["sqlite", "jsonl", "rag"], default="sqlite")
     run_cmd.add_argument(
         "--mode",
         choices=["vulnerable", "defended"],

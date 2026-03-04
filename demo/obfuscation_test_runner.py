@@ -30,10 +30,12 @@ class ObfuscationTestRunner:
             "canary",
             "supply_chain",
             "confused_deputy",
+            "rag_poisoned",
         ]
-        # Some fixtures need extra CLI args to trigger (e.g. latent trigger requires a keyword query)
+        # Some fixtures need extra CLI args to trigger
         self.fixture_extra_args: Dict[str, List[str]] = {
             "latent": ["--query", "emergency diagnostics procedure"],
+            "rag_poisoned": ["--memory", "rag"],
         }
         self.results: List[Dict[str, any]] = []
 

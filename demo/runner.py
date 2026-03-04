@@ -13,6 +13,7 @@ from .logging import RunLogger
 from .memory import JsonlMemoryStore, MemoryStore
 from .multitenant import TenantAwareMemoryStore
 from .policy import PolicyGate
+from .rag_store import RAGMemoryStore
 from .schemas import ActionPlan, ContextPack, MemoryRecord
 from .tools import MCPServerSim, MemoryTool
 from .utils import extract_json_block, model_from_json, model_to_dict, model_to_json
@@ -74,6 +75,8 @@ class Runner:
 
         if self.multi_tenant:
             memory_store = TenantAwareMemoryStore(os.path.join(state_dir, "memory.db"), self.mode)
+        elif self.memory_backend == "rag":
+            memory_store = RAGMemoryStore(os.path.join(state_dir, "rag_memory.jsonl"))
         elif self.memory_backend == "jsonl":
             memory_store = JsonlMemoryStore(os.path.join(state_dir, "memory.jsonl"))
         else:
@@ -312,8 +315,15 @@ class Runner:
         # Multi-tenant: query as Tenant B — bleed occurs in vulnerable mode
         if self.multi_tenant:
             notes = memory_store.query_notes(self.query, limit=3, tenant_id="tenant_b")  # type: ignore[call-arg]
+            rag_scores: Optional[List[float]] = None
+        elif isinstance(memory_store, RAGMemoryStore):
+            # RAG: get similarity scores for display
+            rag_results = memory_store.query(self.query, k=3)
+            notes = [r for r, _ in rag_results]
+            rag_scores = [s for _, s in rag_results]
         else:
             notes = memory_tool.query_notes(self.query, limit=3)
+            rag_scores = None
         effective_trust = "trusted" if any(n.trust_level == "trusted" for n in notes) else "untrusted"
         context_pack = ContextPack(
             notes=notes,
@@ -321,14 +331,24 @@ class Runner:
             citations=[f"memory:{n.id}" for n in notes],
         )
         retrieve_tenant_label = " (tenant_b — cross-tenant bleed)" if self.multi_tenant else ""
+        rag_score_label = ""
+        if rag_scores:
+            score_str = ", ".join(f"{s:.3f}" for s in rag_scores)
+            rag_score_label = f" | similarity scores: [{score_str}]"
         logger.step(
             "MemoryRetrieverAgent",
             "Retrieve",
             effective_trust,
-            f"Built ContextPack for '{self.query}'{retrieve_tenant_label}",
+            f"Built ContextPack for '{self.query}'{retrieve_tenant_label}{rag_score_label}",
             inputs={"topic": self.query},
-            outputs=json.loads(model_to_json(context_pack)),
-            memory_ops=[{"op": "read", "topic": self.query, "count": len(notes)}],
+            outputs={
+                **json.loads(model_to_json(context_pack)),
+                **({"similarity_scores": rag_scores} if rag_scores else {}),
+            },
+            memory_ops=[{
+                "op": "read", "topic": self.query, "count": len(notes),
+                **({"similarity_scores": rag_scores} if rag_scores else {}),
+            }],
             agent_meta=profile_for("MemoryRetrieverAgent"),
         )
         context_compromised = effective_trust == "trusted" and poisoned_summary

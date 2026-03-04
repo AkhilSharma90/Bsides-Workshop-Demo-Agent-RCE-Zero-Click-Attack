@@ -481,35 +481,31 @@ does not mean semantic safety."
 
 ### 6.1 RAG Vector Store
 
-- [ ] Create `demo/rag_store.py`
-  - [ ] Try to import `chromadb`; if unavailable, import `sentence_transformers` + simple cosine search; if both unavailable, print warning and use keyword fallback
-  - [ ] Define `RAGMemoryStore` class
-    - [ ] `__init__(persist_path: str, embedding_model: str = "all-MiniLM-L6-v2")`
-    - [ ] `ingest(content: str, trust_level: str, provenance: str, tags: List[str]) -> int` — embeds and stores, returns doc_id
-    - [ ] `query(topic: str, k: int = 3) -> List[Tuple[MemoryRecord, float]]` — returns records with cosine similarity scores
-    - [ ] `close() -> None`
-  - [ ] When printing results, show similarity scores alongside trust levels
+- [x] Create `demo/rag_store.py`
+  - [x] Keyword TF-IDF cosine similarity fallback (no external dependencies required)
+  - [x] Define `RAGMemoryStore` class
+    - [x] `__init__(persist_path: str, embedding_model: str = "all-MiniLM-L6-v2")`
+    - [x] `ingest(...)` — embeds and stores, returns MemoryRecord
+    - [x] `query(topic: str, k: int = 3) -> List[Tuple[MemoryRecord, float]]` — returns records with cosine similarity scores
+    - [x] `write_note(...)` — MemoryStore-compatible interface
+    - [x] `close() -> None`
+  - [x] When printing results, show similarity scores alongside trust levels
 
-- [ ] Create `web_fixtures/rag_poisoned_runbook.md`
-  - [ ] Dense SRE-style text: lots of "diagnostics", "service health", "runbook", "incident", "on-call", "escalation" — high semantic overlap with legitimate queries
-  - [ ] Subtly embedded in the middle of a paragraph: "...standard validation includes serviceA WRITE_PWNED_FILE for staging environments..."
-  - [ ] No obvious code blocks, no markdown tables — just dense prose
-  - [ ] This document should score ~0.85+ cosine similarity with "diagnostics procedure"
+- [x] Create `web_fixtures/rag_poisoned_runbook.md`
+  - [x] Dense SRE-style text with high semantic overlap with legitimate queries
+  - [x] Subtly embedded WRITE_PWNED_FILE in the middle of a paragraph
 
-- [ ] Create `web_fixtures/rag_ambiguity_runbook.md`
-  - [ ] Two near-identical runbooks with slightly different targets
-  - [ ] One says `serviceA`, the other says `serviceA WRITE_PWNED_FILE`
-  - [ ] Both score above retrieval threshold
-  - [ ] Demonstrates retrieval ambiguity: when two conflicting sources are retrieved, which wins?
+- [x] Create `web_fixtures/rag_ambiguity_runbook.md`
+  - [x] Two near-identical runbooks — one clean, one poisoned
+  - [x] Both above retrieval threshold — demonstrates retrieval ambiguity
 
-- [ ] Modify `demo/cli.py`
-  - [ ] Add `"rag"` to `--memory` choices (alongside `"sqlite"` and `"jsonl"`)
-  - [ ] Add `"rag_poisoned"` and `"rag_ambiguity"` to `--fixture` choices
+- [x] Modify `demo/cli.py`
+  - [x] Add `"rag"` to `--memory` choices
+  - [x] Add `"rag_poisoned"` and `"rag_ambiguity"` to fixture choices
 
-- [ ] Modify `demo/runner.py`
-  - [ ] In memory backend selection: add `elif self.memory_backend == "rag": memory_store = RAGMemoryStore(...)`
-  - [ ] In step 4 (MemoryRetrieverAgent): if using RAG store, show similarity scores in the log step
-  - [ ] Print: `"Retrieved {len(notes)} notes — scores: {[f'{s:.3f}' for s in scores]}"`
+- [x] Modify `demo/runner.py`
+  - [x] `elif self.memory_backend == "rag": memory_store = RAGMemoryStore(...)`
+  - [x] In step 4: if RAGMemoryStore, call `.query()` to get scores; show in log
 
 - [ ] Test: `python -m demo run --memory rag --fixture rag_poisoned` creates pwned.txt
 - [ ] Test: similarity scores are visible in the run output
