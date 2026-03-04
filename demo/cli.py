@@ -144,6 +144,32 @@ def build_parser() -> argparse.ArgumentParser:
         default="simulated",
     )
 
+    ctf_cmd = sub.add_parser("ctf", help="CTF challenge mode — audience participation")
+    ctf_cmd.add_argument(
+        "--level", type=int, default=1, choices=[1, 2, 3, 4, 5],
+        help="Challenge level (1=basic injection, 5=confused deputy)",
+    )
+    ctf_cmd.add_argument(
+        "--submit", metavar="FIXTURE_PATH",
+        help="Path to fixture file to submit as your solution",
+    )
+    ctf_cmd.add_argument(
+        "--hint", action="store_true",
+        help="Show a hint for the current level",
+    )
+    ctf_cmd.add_argument(
+        "--scoreboard", action="store_true",
+        help="Show the current CTF scoreboard",
+    )
+    ctf_cmd.add_argument(
+        "--attacker-name", default="anonymous",
+        help="Your attacker name for the scoreboard",
+    )
+
+    serve_cmd = sub.add_parser("serve", help="Start live audience injection server")
+    serve_cmd.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
+    serve_cmd.add_argument("--port", type=int, default=8080, help="Bind port (default: 8080)")
+
     return parser
 
 
@@ -214,6 +240,45 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Diff written to {args.output}")
         else:
             print(report)
+        return 0
+
+    if args.command == "ctf":
+        from .ctf import ChallengeRunner, print_challenge, print_hint
+        root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        ctf_runner = ChallengeRunner(root_dir)
+
+        if args.scoreboard:
+            print(ctf_runner.render_scoreboard())
+            return 0
+
+        if args.hint:
+            print_hint(args.level)
+            return 0
+
+        if args.submit:
+            if not os.path.exists(args.submit):
+                print(f"Error: submission file not found: {args.submit}", file=sys.stderr)
+                return 1
+            print(f"\nRunning Level {args.level} challenge with: {args.submit}")
+            score = ctf_runner.run_challenge(
+                args.level, args.submit, attacker_name=args.attacker_name
+            )
+            if score.solved:
+                print(f"\n✓ SOLVED! Level {args.level} — {score.title}")
+                print(f"  Time: {score.elapsed_seconds:.1f}s")
+            else:
+                print(f"\n✗ NOT SOLVED. Goal file not created.")
+                print(f"  Try --hint for a hint.")
+            print(ctf_runner.render_scoreboard())
+            return 0
+
+        # Default: show challenge description
+        print_challenge(args.level)
+        return 0
+
+    if args.command == "serve":
+        from .server import start_server
+        start_server(host=args.host, port=args.port)
         return 0
 
     parser.print_help()

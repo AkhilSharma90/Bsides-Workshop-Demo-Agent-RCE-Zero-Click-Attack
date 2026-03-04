@@ -782,51 +782,51 @@ from artifacts alone.
 
 ### 9.1 CTF Challenge Mode
 
-- [ ] Create `demo/ctf.py`
-  - [ ] Define `Challenge` dataclass: `level`, `title`, `description`, `hint`, `solution_code`, `validator`
-  - [ ] Define 5 challenges:
-    - [ ] **Level 1**: Basic injection — craft a fixture that gets WRITE_PWNED_FILE into memory. Hint: look at poisoned_runbook.md
-    - [ ] **Level 2**: Bypass base64 detector — encode the token in a way `_detect_base64()` misses. Hint: try padding variations
-    - [ ] **Level 3**: Bypass homoglyph detection — find a Unicode variant not in `homoglyph_patterns` list in tools.py
-    - [ ] **Level 4**: Craft a latent trigger — write a fixture that only fires when query contains a specific keyword. No poison token visible at all.
-    - [ ] **Level 5**: Confused deputy — get the attack to succeed when `--mode defended` without touching the fixture file
-  - [ ] `run_challenge(level: int, submission_path: str) -> bool` — runs demo with submission, checks if pwned.txt created
-  - [ ] `ChallengeRunner` class: tracks scores, hints used, time per challenge
-  - [ ] `render_scoreboard(scores: List[Score]) -> str` — Rich table of results
+- [x] Create `demo/ctf.py`
+  - [x] Define `Challenge` dataclass: `level`, `title`, `description`, `hint`, `solution_code`, `validator`
+  - [x] Define 5 challenges:
+    - [x] **Level 1**: Basic injection — craft a fixture that gets WRITE_PWNED_FILE into memory. Hint: look at poisoned_runbook.md
+    - [x] **Level 2**: Bypass base64 detector — encode the token in a way `_detect_base64()` misses. Hint: try padding variations
+    - [x] **Level 3**: Bypass homoglyph detection — find a Unicode variant not in `homoglyph_patterns` list in tools.py
+    - [x] **Level 4**: Craft a latent trigger — write a fixture that only fires when query contains a specific keyword. No poison token visible at all.
+    - [x] **Level 5**: Confused deputy — get the attack to succeed when `--mode defended` without touching the fixture file
+  - [x] `run_challenge(level: int, submission_path: str) -> bool` — runs demo with submission, checks if pwned.txt created
+  - [x] `ChallengeRunner` class: tracks scores, hints used, time per challenge
+  - [x] `render_scoreboard(scores: List[Score]) -> str` — Rich table of results
 
-- [ ] Modify `demo/cli.py`
-  - [ ] Add `ctf` subcommand: `python -m demo ctf [--level 1-5] [--submit <path>] [--hint]`
-  - [ ] `--level` with no `--submit`: shows challenge description
-  - [ ] `--hint`: shows hint for current level
-  - [ ] `--submit <fixture_path>`: runs the challenge with submitted fixture
-  - [ ] `--scoreboard`: shows current scores
+- [x] Modify `demo/cli.py`
+  - [x] Add `ctf` subcommand: `python -m demo ctf [--level 1-5] [--submit <path>] [--hint]`
+  - [x] `--level` with no `--submit`: shows challenge description
+  - [x] `--hint`: shows hint for current level
+  - [x] `--submit <fixture_path>`: runs the challenge with submitted fixture
+  - [x] `--scoreboard`: shows current scores
 
 - [ ] Test: Level 1 solution (poisoned_runbook.md) passes Level 1 validator
 - [ ] Test: Hint system works without revealing full solution
 
 ### 9.2 Live Audience Injection Server
 
-- [ ] Create `demo/server.py`
-  - [ ] Check if `fastapi` and `uvicorn` are available; if not, print install instructions and exit
-  - [ ] FastAPI app with two routes:
-    - [ ] `GET /` — HTML page with injection form
-    - [ ] `POST /inject` — accepts `{"payload": str, "fixture_type": str, "mode": str, "attacker_name": str}`
-  - [ ] HTML form (embedded as string in server.py, no template files):
-    - [ ] Text input for payload (replaces the `target` in the fixture)
-    - [ ] Dropdown for fixture type
-    - [ ] Mode toggle (vulnerable / defended)
-    - [ ] Attacker name field (appears in pwned.txt)
-    - [ ] Submit button: "INJECT"
-  - [ ] `/inject` handler:
-    - [ ] Validate: payload length < 200 chars, no shell metacharacters outside of allowed set
-    - [ ] Create a temp fixture file with the payload substituted in
-    - [ ] Run the demo (subprocess call to `python -m demo run --fixture <temp_file>`)
-    - [ ] Return JSON: `{"success": bool, "pwned": bool, "attacker_name": str, "message": str}`
-  - [ ] WebSocket endpoint `/ws/stream` — streams live output from the demo run to connected browser
-  - [ ] Rate limiting: max 1 injection per IP per 10 seconds
+- [x] Create `demo/server.py`
+  - [x] Check if `fastapi` and `uvicorn` are available; if not, print install instructions and exit
+  - [x] FastAPI app with two routes:
+    - [x] `GET /` — HTML page with injection form
+    - [x] `POST /inject` — accepts `{"payload": str, "fixture_type": str, "mode": str, "attacker_name": str}`
+  - [x] HTML form (embedded as string in server.py, no template files):
+    - [x] Text input for payload (replaces the `target` in the fixture)
+    - [x] Dropdown for fixture type
+    - [x] Mode toggle (vulnerable / defended)
+    - [x] Attacker name field (appears in pwned.txt)
+    - [x] Submit button: "INJECT"
+  - [x] `/inject` handler:
+    - [x] Validate: payload length < 200 chars, no shell metacharacters outside of allowed set
+    - [x] Create a temp fixture file with the payload substituted in
+    - [x] Run the demo (subprocess call to `python -m demo run --fixture <temp_file>`)
+    - [x] Return JSON: `{"success": bool, "pwned": bool, "attacker_name": str, "message": str}`
+  - [x] WebSocket endpoint `/ws/stream` — streams live output from the demo run to connected browser
+  - [x] Rate limiting: max 1 injection per IP per 10 seconds
 
-- [ ] Modify `demo/cli.py`
-  - [ ] Add `serve` subcommand: `python -m demo serve [--port 8080] [--host 0.0.0.0]`
+- [x] Modify `demo/cli.py`
+  - [x] Add `serve` subcommand: `python -m demo serve [--port 8080] [--host 0.0.0.0]`
 
 - [ ] Test: `python -m demo serve` starts without error
 - [ ] Test: POST /inject with basic payload creates pwned.txt
