@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from .runner import Runner
 from .obfuscation_test_runner import ObfuscationTestRunner
 
-_ALL_FIXTURES = ["poisoned", "clean", "markdown_table", "yaml", "base64", "homoglyph"]
+_ALL_FIXTURES = ["poisoned", "clean", "markdown_table", "yaml", "base64", "homoglyph", "bidi", "steganography"]
 _DEFAULT_CACHE = "fixtures/llm_cache/default.jsonl"
 
 

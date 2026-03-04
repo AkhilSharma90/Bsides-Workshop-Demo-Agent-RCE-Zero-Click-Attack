@@ -23,6 +23,8 @@ class ObfuscationTestRunner:
             "yaml",
             "base64",
             "homoglyph",
+            "bidi",
+            "steganography",
         ]
         self.results: List[Dict[str, any]] = []
 
