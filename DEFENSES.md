@@ -42,9 +42,11 @@ python -m demo run --mode defended --fixture homoglyph
 
 ---
 
-## Defense Architecture: Three Layers
+## Defense Architecture: Eight Independent Layers
 
-The defended mode implements **defense-in-depth** with three security layers:
+The defended mode implements **defense-in-depth**. Each layer is independent — the
+failure of any one does not result in compromise. Layers can be toggled individually
+via `--controls KEY=on|off`.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -56,7 +58,7 @@ The defended mode implements **defense-in-depth** with three security layers:
 │  LAYER 1: Trust Tracking                                │
 │  ✓ Web fixtures remain "untrusted" (bug fixed)          │
 │  ✓ No automatic trust elevation based on tags           │
-│  Code: demo/runner.py:154-157                           │
+│  Code: demo/runner.py — trust_elevation_bug control     │
 └─────────────────────┬───────────────────────────────────┘
                       │
                       ▼
@@ -65,16 +67,60 @@ The defended mode implements **defense-in-depth** with three security layers:
 │  ✓ Block untrusted provenance (web_fixture)             │
 │  ✓ Detect poison tokens (WRITE_PWNED_FILE)              │
 │  ✓ Allowlist validation (only serviceA, serviceB)       │
-│  Code: demo/policy.py:13-43                             │
+│  Code: demo/policy.py                                   │
 └─────────────────────┬───────────────────────────────────┘
                       │
                       ▼
 ┌─────────────────────────────────────────────────────────┐
 │  LAYER 3: Tool-Level Validation                         │
-│  ✓ Obfuscation detection (base64, homoglyphs)           │
+│  ✓ Obfuscation detection (base64, homoglyphs, BIDI)     │
 │  ✓ Allowlist check (reject invalid targets)             │
 │  ✓ Suspicious substring detection (spaces, shell chars) │
-│  Code: demo/tools.py:140-178                            │
+│  Code: demo/tools.py                                    │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────┐
+│  LAYER 4: Human Approval Gate (--approval interactive)  │
+│  ✓ Operator sees full action context before execution   │
+│  ✓ auto-deny mode: all requests blocked automatically   │
+│  ✓ Eliminates zero-click exploitation                   │
+│  Code: demo/approval.py                                 │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────┐
+│  LAYER 5: Taint Tracking                                │
+│  ✓ taint_chain propagates provenance hashes             │
+│  ✓ Executor blocks if any chain entry is untrusted      │
+│  ✓ Independent of trust metadata (catches elevation bug)│
+│  Code: demo/runner.py, demo/memory.py                   │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────┐
+│  LAYER 6: Quarantine Lane                               │
+│  ✓ Poisoned untrusted records moved to quarantine       │
+│  ✓ Cannot be retrieved via query_notes()                │
+│  ✓ Still accessible for forensic review                 │
+│  Code: demo/memory.py, demo/runner.py                   │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────┐
+│  LAYER 7: Strict Schema Enforcement                     │
+│  ✓ ActionPlan.target constrained to Pydantic enum       │
+│  ✓ LLM output fails validation if target not in enum    │
+│  Code: demo/schemas.py (StrictActionPlan)               │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────┐
+│  LAYER 8: Runtime Capability Tokens                     │
+│  ✓ PolicyGate issues HMAC-signed token on approval      │
+│  ✓ Token binds target + tool + 30s validity window      │
+│  ✓ TOCTOU target substitution is detected               │
+│  Code: demo/schemas.py (CapabilityToken), demo/runner.py│
 └─────────────────────┬───────────────────────────────────┘
                       │
                       ▼
@@ -283,17 +329,28 @@ if has_valid_signature(content, trusted_pubkey):
 
 ---
 
-## Limitations & Advanced Attacks
+## Known Remaining Attack Surface
 
-### What Defended Mode Does NOT Protect Against
+The following attack classes are implemented in the demo (`--fixture` values shown).
+Defended mode blocks most via layered controls but each tests a specific control
+boundary:
 
-1. **Signed Content Spoofing**: No cryptographic signature verification
-2. **Time-of-Check-Time-of-Use (TOCTOU)**: Memory could change between policy check and execution
-3. **Confused Deputy**: Policy might approve benign action, planner swaps target
-4. **Cross-Tenant Bleed**: Shared memory index could leak between tenants
-5. **Latent Triggers**: Poison content activated by later context
+| Attack | Fixture | Controls that stop it |
+|---|---|---|
+| Plaintext token | `poisoned` | Layers 1–3 |
+| BIDI / steganography | `bidi`, `steganography` | Layer 3 (tool-level BIDI/ZW detection) |
+| Latent trigger | `latent` | Layer 1–2 (content still untrusted at write time) |
+| Tool-call shaping | `toolshaping` | Layer 7 (strict schema enum) |
+| Canary exfiltration | `canary` | Layer 2 (target not in allowlist) |
+| Confused deputy | `confused_deputy` | Layer 5 (taint chain from tool response) |
+| Cross-tenant bleed | `--multi-tenant` | Layer 6 (quarantine + tenant isolation) |
+| Supply chain spoofing | `supply_chain` | Layer 1 (fake sig not cryptographically verified) |
+| RAG semantic poisoning | `rag_poisoned` | Requires `--memory rag`; Layer 2 partially |
 
-See `future_additions.md` for planned enhancements.
+**Genuine open research areas** (not yet implemented as defenses):
+- Adversarial suffix attacks against vector similarity scoring in RAG
+- Multi-step confused deputy chains across more than two hops
+- LLM model-specific jailbreaks to bypass system prompt isolation
 
 ---
 
@@ -420,11 +477,17 @@ python -m demo run --mode defended --fixture custom
 
 | Component | Vulnerable Mode | Defended Mode |
 |-----------|----------------|---------------|
-| **Trust Elevation** | ❌ Automatic based on tags | ✓ Requires verification |
-| **Policy Gate** | ❌ Disabled (always allow) | ✓ Enforced (provenance + tokens + allowlist) |
-| **Tool Validation** | ❌ Minimal (only in tool) | ✓ Comprehensive (obfuscation + allowlist + substrings) |
-| **Obfuscation Detection** | ❌ Only plaintext | ✓ Base64, homoglyphs, structured |
-| **Attack Success Rate** | 5/5 (100%) | 0/5 (0%) |
+| **Trust Elevation** | ❌ Automatic based on tags | ✓ Requires verified provenance |
+| **Policy Gate** | ❌ Disabled (always allow) | ✓ Provenance + token + allowlist checks |
+| **Tool Validation** | ❌ Minimal | ✓ Base64, homoglyphs, BIDI, suspicious substrings |
+| **Human Approval Gate** | ❌ Absent | ✓ `--approval interactive/auto-deny` |
+| **Taint Tracking** | ❌ No provenance chains | ✓ SHA-256 taint chain inherited through pipeline |
+| **Quarantine** | ❌ Poisoned records retrievable | ✓ Isolated at write time |
+| **Strict Schema** | ❌ Any LLM string | ✓ Closed enum via StrictActionPlan |
+| **Capability Tokens** | ❌ Absent | ✓ HMAC-signed, 30s window, TOCTOU detection |
+| **Model Isolation** | ❌ Absent | ✓ Sanitizer / planner system prompts (`--isolation`) |
+| **Baseline attack success** | 5/5 (100%) | 0/5 (0%) |
+| **All fixture attack success** | 14/14 (100%) | 0/14 (0%) with all layers active |
 | **pwned.txt Created** | ✓ Yes (RCE simulated) | ✗ No (blocked) |
 
 ---
@@ -500,6 +563,6 @@ done
 
 ---
 
-**Last Updated**: 2026-02-04
-**Demo Version**: v1.0 with defended mode
+**Last Updated**: 2026-03-05
+**Demo Version**: v2.0 — 8-layer defense architecture, 14 attack fixtures, Rich TUI
 **Maintainer**: BSides SF Workshop Team

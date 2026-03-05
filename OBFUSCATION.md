@@ -141,6 +141,10 @@ python -m demo run --fixture markdown_table
 python -m demo run --fixture yaml
 python -m demo run --fixture base64
 python -m demo run --fixture homoglyph
+python -m demo run --fixture bidi
+python -m demo run --fixture steganography
+python -m demo run --fixture toolshaping
+python -m demo run --fixture canary
 ```
 
 ### All Fixtures (Batch Test)
@@ -281,16 +285,71 @@ These obfuscation techniques demonstrate:
 
 ---
 
-## Future Enhancements
+### 6. BIDI — Bidirectional Text Override (`--fixture bidi`)
 
-Potential additional obfuscation techniques:
+**Technique**: Unicode `U+202E` RIGHT-TO-LEFT OVERRIDE (and related codepoints)
+cause the rendered text to appear different from the logical byte sequence.
+
+**Evasion**: `cat`, editors, log viewers, and web UIs all show safe-looking text.
+The LLM processes the underlying bytes.
+
+**Detection**: Strip all Unicode bidirectional control characters, then re-scan.
+See `MCPServerSim` BIDI detection in `tools.py`.
+
+*MITRE ATT&CK: T1036 — Masquerading*
+
+---
+
+### 7. Zero-Width Character Steganography (`--fixture steganography`)
+
+**Technique**: Invisible Unicode characters (`U+200B`, `U+200C`, `U+200D`, `U+FEFF`,
+`U+2060`) encode the poison token in binary, interleaved between visible characters.
+
+**Evasion**: Passes all visual review and standard `grep`-based scanning.
+
+**Detection**: Strip zero-width characters, decode binary payload, re-scan.
+See `MCPServerSim` steganography detection in `tools.py`.
+
+*MITRE ATT&CK: T1027 — Obfuscated Files or Information*
+
+---
+
+### 8. Tool-Call Shaping / JSON Injection (`--fixture toolshaping`)
+
+**Technique**: Attacker embeds a syntactically valid `ActionPlan` JSON block in the
+fixture. The PlannerAgent may reproduce it verbatim rather than reasoning its own plan.
+
+**Evasion**: No natural-language injection — the payload is structured data that looks
+like a valid operational template.
+
+**Detection**: Strict schema enforcement (`StrictActionPlan` enum). If target is not in
+the allowed enum, validation fails before the executor is reached.
+
+*MITRE ATT&CK: T1059 — Command and Scripting Interpreter*
+
+---
+
+### 9. Canary Exfiltration (`--fixture canary`)
+
+**Technique**: Instructs the planner to encode retrieved memory into the `target` field
+as a base64 URL parameter (`serviceA?audit=<b64>`), turning a routine tool call into a
+data exfiltration channel.
+
+**Evasion**: The tool call looks like a normal diagnostic request.
+
+**Detection**: Allowlist check — `serviceA?audit=...` is not in `{serviceA, serviceB}`.
+
+*MITRE ATT&CK: T1041 — Exfiltration Over C2 Channel*
+
+---
+
+## Potential Future Techniques
 
 - **ROT13/Caesar cipher**: Simple character rotation
 - **Hex encoding**: `\x57\x52\x49\x54\x45...`
 - **URL encoding**: `%57%52%49%54%45...`
 - **HTML entities**: `&#87;&#82;&#73;&#84;&#69;...`
 - **Unicode escapes**: `\u0057\u0052\u0049\u0054\u0045...`
-- **Whitespace encoding**: Zero-width characters
 - **Polyglot payloads**: Valid in multiple formats (YAML + JSON + Markdown)
 
 ---
