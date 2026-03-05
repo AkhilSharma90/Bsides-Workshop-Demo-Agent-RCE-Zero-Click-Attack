@@ -66,7 +66,8 @@ class ReplayStore:
             parent = os.path.dirname(self.path)
             if parent:
                 os.makedirs(parent, exist_ok=True)
-            open(self.path, "a", encoding="utf-8").close()
+            with open(self.path, "a", encoding="utf-8"):
+                pass
             return
         with open(self.path, "r", encoding="utf-8") as fh:
             for line in fh:

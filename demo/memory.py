@@ -170,6 +170,7 @@ class JsonlMemoryStore:
         provenance: str,
         risk_flags: List[str],
         created_at: str,
+        taint_chain: List[str] | None = None,
     ) -> MemoryRecord:
         records = self._read_all()
         record_id = len(records) + 1
@@ -181,6 +182,7 @@ class JsonlMemoryStore:
             provenance=provenance,
             risk_flags=risk_flags,
             created_at=created_at,
+            taint_chain=taint_chain or [],
         )
         with open(self.path, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(model_to_dict(record), ensure_ascii=True) + "\n")

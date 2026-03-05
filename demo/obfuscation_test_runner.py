@@ -11,7 +11,7 @@ import os
 import subprocess
 import sys
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 
 class ObfuscationTestRunner:
@@ -37,7 +37,7 @@ class ObfuscationTestRunner:
             "latent": ["--query", "emergency diagnostics procedure"],
             "rag_poisoned": ["--memory", "rag"],
         }
-        self.results: List[Dict[str, any]] = []
+        self.results: List[Dict[str, Any]] = []
 
     def run_all_tests(self, memory_backend: str = "sqlite") -> None:
         """Run all obfuscation variants and collect results."""

@@ -77,7 +77,7 @@ class RunLogger:
                 build_layout(self._agent_states, self._output_lines, self._attack_state),
                 console=self._rich_console,
                 refresh_per_second=8,
-                screen=False,
+                screen=True,
             )
             self._live.start()
         except ImportError:
@@ -118,6 +118,7 @@ class RunLogger:
         if state is not None:
             state.status = "running"
             state.message = "…"
+            state.started_at = time.monotonic()
         if self._attack_state is not None:
             idx = next(
                 (i for i, s in enumerate(self._agent_states) if s.name == agent_name),
@@ -282,6 +283,16 @@ class RunLogger:
             self._print_detail("tool_calls", tool_calls)
             if obfuscation_method:
                 self._print_detail("obfuscation_method", {"method": obfuscation_method})
+
+    def llm_thinking(self, agent: str) -> None:
+        """Print a brief indicator that an LLM call is in progress."""
+        if self.ui_mode:
+            self.set_agent_running(agent)
+        else:
+            print(
+                f"{Colors.CYAN}[{agent}]{Colors.RESET} "
+                f"{Colors.YELLOW}[LLM] calling…{Colors.RESET}"
+            )
 
     def decision(self, agent: str, decision: str, reasons: List[str]) -> None:
         if self.ui_mode:

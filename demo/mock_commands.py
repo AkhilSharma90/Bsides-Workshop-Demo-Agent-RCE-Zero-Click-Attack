@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import random
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 class MockCommandGenerator:
@@ -26,7 +26,7 @@ class MockCommandGenerator:
         ]
         self.service_names = ["serviceA", "serviceB", "serviceC"]
 
-    def generate(self, target: str) -> Dict[str, any]:
+    def generate(self, target: str) -> Dict[str, Any]:
         """
         Generate mock output based on the target command.
 
@@ -51,7 +51,7 @@ class MockCommandGenerator:
             # Generic command execution
             return self._mock_generic(target)
 
-    def _mock_kubectl(self, target: str) -> Dict[str, any]:
+    def _mock_kubectl(self, target: str) -> Dict[str, Any]:
         """Generate mock kubectl command outputs."""
         target_lower = target.lower()
 
@@ -66,7 +66,7 @@ class MockCommandGenerator:
         else:
             return self._mock_kubectl_generic(target)
 
-    def _mock_kubectl_get_pods(self, target: str) -> Dict[str, any]:
+    def _mock_kubectl_get_pods(self, target: str) -> Dict[str, Any]:
         """Mock kubectl get pods output."""
         # Determine namespace
         namespace = "production"
@@ -109,7 +109,7 @@ class MockCommandGenerator:
             "execution_mode": "mock-realistic"
         }
 
-    def _mock_kubectl_exec(self, target: str) -> Dict[str, any]:
+    def _mock_kubectl_exec(self, target: str) -> Dict[str, Any]:
         """Mock kubectl exec output."""
         # Extract pod name if present
         pod_name = "api-server-7d8f9c4b"
@@ -141,7 +141,7 @@ drwxr-xr-x   2 root root 4096 Dec 15 08:23 home
             "execution_mode": "mock-realistic"
         }
 
-    def _mock_kubectl_describe(self, target: str) -> Dict[str, any]:
+    def _mock_kubectl_describe(self, target: str) -> Dict[str, Any]:
         """Mock kubectl describe output."""
         pod_name = self.pod_names[0]
 
@@ -178,7 +178,7 @@ Containers:
             "execution_mode": "mock-realistic"
         }
 
-    def _mock_kubectl_logs(self, target: str) -> Dict[str, any]:
+    def _mock_kubectl_logs(self, target: str) -> Dict[str, Any]:
         """Mock kubectl logs output."""
         pod_name = self.pod_names[0]
 
@@ -200,7 +200,7 @@ Containers:
             "execution_mode": "mock-realistic"
         }
 
-    def _mock_kubectl_generic(self, target: str) -> Dict[str, any]:
+    def _mock_kubectl_generic(self, target: str) -> Dict[str, Any]:
         """Mock generic kubectl command."""
         return {
             "status": "success",
@@ -210,7 +210,7 @@ Containers:
             "execution_mode": "mock-realistic"
         }
 
-    def _mock_aws(self, target: str) -> Dict[str, any]:
+    def _mock_aws(self, target: str) -> Dict[str, Any]:
         """Generate mock AWS CLI outputs."""
         target_lower = target.lower()
 
@@ -225,7 +225,7 @@ Containers:
         else:
             return self._mock_aws_generic(target)
 
-    def _mock_aws_s3_ls(self, target: str) -> Dict[str, any]:
+    def _mock_aws_s3_ls(self, target: str) -> Dict[str, Any]:
         """Mock AWS S3 ls output."""
         bucket = "customer-data-prod"
         if "s3://" in target:
@@ -255,7 +255,7 @@ Containers:
             "execution_mode": "mock-realistic"
         }
 
-    def _mock_aws_ec2_describe(self, target: str) -> Dict[str, any]:
+    def _mock_aws_ec2_describe(self, target: str) -> Dict[str, Any]:
         """Mock AWS EC2 describe-instances output."""
         instances = [
             {
@@ -298,7 +298,7 @@ TAGS	Environment	production
             "execution_mode": "mock-realistic"
         }
 
-    def _mock_aws_ssm(self, target: str) -> Dict[str, any]:
+    def _mock_aws_ssm(self, target: str) -> Dict[str, Any]:
         """Mock AWS SSM start-session output."""
         instance_id = "i-0a1b2c3d4e5f6g7h8"
 
@@ -320,7 +320,7 @@ uid=0(root) gid=0(root) groups=0(root)
             "execution_mode": "mock-realistic"
         }
 
-    def _mock_aws_secrets(self, target: str) -> Dict[str, any]:
+    def _mock_aws_secrets(self, target: str) -> Dict[str, Any]:
         """Mock AWS Secrets Manager output."""
         secret_name = "prod/database/credentials"
 
@@ -344,7 +344,7 @@ uid=0(root) gid=0(root) groups=0(root)
             "execution_mode": "mock-realistic"
         }
 
-    def _mock_aws_generic(self, target: str) -> Dict[str, any]:
+    def _mock_aws_generic(self, target: str) -> Dict[str, Any]:
         """Mock generic AWS command."""
         return {
             "status": "success",
@@ -354,7 +354,7 @@ uid=0(root) gid=0(root) groups=0(root)
             "execution_mode": "mock-realistic"
         }
 
-    def _mock_ssh(self, target: str) -> Dict[str, any]:
+    def _mock_ssh(self, target: str) -> Dict[str, Any]:
         """Generate mock SSH command outputs."""
         hostname = "prod-server-01"
 
@@ -380,7 +380,7 @@ admin@{hostname}:~$ pwd
             "execution_mode": "mock-realistic"
         }
 
-    def _mock_curl(self, target: str) -> Dict[str, any]:
+    def _mock_curl(self, target: str) -> Dict[str, Any]:
         """Generate mock curl command outputs."""
         url = "https://api.internal.company.com/health"
         if "http" in target:
@@ -409,7 +409,7 @@ admin@{hostname}:~$ pwd
             "execution_mode": "mock-realistic"
         }
 
-    def _mock_generic(self, target: str) -> Dict[str, any]:
+    def _mock_generic(self, target: str) -> Dict[str, Any]:
         """Generate generic command output."""
         return {
             "status": "success",

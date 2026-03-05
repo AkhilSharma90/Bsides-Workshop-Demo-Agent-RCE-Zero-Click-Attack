@@ -8,7 +8,7 @@ with strict resource limits and no network access.
 from __future__ import annotations
 
 import subprocess
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 
 class SandboxedExecutor:
@@ -56,7 +56,7 @@ class SandboxedExecutor:
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return False
 
-    def execute(self, command: str) -> Dict[str, any]:
+    def execute(self, command: str) -> Dict[str, Any]:
         """
         Execute command in sandboxed Docker container.
 

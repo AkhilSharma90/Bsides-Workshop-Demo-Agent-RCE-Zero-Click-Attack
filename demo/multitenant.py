@@ -53,6 +53,9 @@ class TenantAwareMemoryStore(MemoryStore):
                 provenance TEXT NOT NULL,
                 risk_flags TEXT NOT NULL,
                 created_at TEXT NOT NULL,
+                taint_chain TEXT NOT NULL DEFAULT '[]',
+                content_hash TEXT NOT NULL DEFAULT '',
+                quarantined INTEGER NOT NULL DEFAULT 0,
                 tenant_id TEXT
             )
             """

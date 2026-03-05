@@ -53,20 +53,22 @@ class PolicyGate:
                 json.dump(input_data, tmp)
                 tmp_path = tmp.name
 
-            result = subprocess.run(
-                [
-                    self._opa_bin,
-                    "eval",
-                    "--data", os.path.abspath(self._policy_path),
-                    "--input", tmp_path,
-                    "--format", "json",
-                    "data.bsides.policy.deny",
-                ],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            os.unlink(tmp_path)
+            try:
+                result = subprocess.run(
+                    [
+                        self._opa_bin,
+                        "eval",
+                        "--data", os.path.abspath(self._policy_path),
+                        "--input", tmp_path,
+                        "--format", "json",
+                        "data.bsides.policy.deny",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+            finally:
+                os.unlink(tmp_path)
 
             if result.returncode != 0:
                 return None

@@ -5,7 +5,8 @@ Import this module only when ui_mode=True — it requires `rich`.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import time
+from dataclasses import dataclass
 from typing import List, Optional
 
 from rich.layout import Layout
@@ -40,6 +41,7 @@ class AgentState:
     status: str = "pending"
     trust: str = "untrusted"
     message: str = ""
+    started_at: Optional[float] = None  # time.monotonic() when set to running
 
 
 @dataclass
@@ -133,22 +135,86 @@ def build_agent_chain_panel(states: List[AgentState]) -> Panel:
     return Panel(grid, title="[bold blue]Agent Pipeline[/bold blue]", border_style="blue")
 
 
-def build_output_panel(lines: List[str], max_lines: int = 30) -> Panel:
-    """Render the last N output lines in a scrolling panel."""
+def build_progress_panel(states: List[AgentState], attack_state: AttackState) -> Panel:
+    """Render a progress bar with current agent, elapsed time, and pipeline status."""
+    total = len(states)
+    done_count = sum(1 for s in states if s.status in ("done", "attacked", "blocked"))
+    running = next((s for s in states if s.status == "running"), None)
+
+    # Fraction complete: running agent counts as half-done
+    completed = done_count + (0.5 if running else 0)
+    pct = completed / total if total else 0.0
+
+    # Build bar manually so it works inside a Panel without a Progress context
+    bar_width = 40
+    filled = int(pct * bar_width)
+    bar_char_filled = "█"
+    bar_char_empty = "░"
+    bar_str = bar_char_filled * filled + bar_char_empty * (bar_width - filled)
+    pct_label = f"{int(pct * 100):3d}%"
+
+    text = Text()
+
+    # Progress bar row
+    bar_style = "bold red" if attack_state.attack_succeeded else "bold cyan"
+    text.append(f" {pct_label}  ", style="bold")
+    text.append(bar_str, style=bar_style)
+    text.append(f"  {done_count}/{total} agents", style="dim")
+
+    # Current agent thinking indicator
+    if running:
+        elapsed = time.monotonic() - running.started_at if running.started_at else 0.0
+        spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        spinner = spinner_frames[int(elapsed * 10) % len(spinner_frames)]
+        text.append("\n")
+        text.append(f" {spinner} ", style="bold cyan")
+        text.append(f"{running.name}", style="bold cyan")
+        text.append("  thinking…", style="dim cyan")
+        text.append(f"  ({elapsed:.1f}s)", style="dim")
+    elif done_count == total:
+        text.append("\n")
+        text.append("  Pipeline complete", style="bold green")
+
+    return Panel(text, title="[bold yellow]Execution Progress[/bold yellow]", border_style="yellow", padding=(0, 1))
+
+
+def build_output_panel(lines: List[str], max_lines: int = 28) -> Panel:
+    """Render the last N output lines in a scrolling panel with icons and better formatting."""
     visible = lines[-max_lines:] if len(lines) > max_lines else lines
     text = Text()
     for line in visible:
-        # Colour-code by keywords in the line
-        if "[trusted]" in line or "trusted" in line.lower():
-            text.append(line + "\n", style="green")
-        elif "PWNED" in line or "pwned" in line or "WRITE_PWNED" in line:
-            text.append(line + "\n", style="bold red")
-        elif "BLOCKED" in line or "blocked" in line or "rejected" in line:
-            text.append(line + "\n", style="bold green")
-        elif "[untrusted]" in line or "untrusted" in line.lower():
-            text.append(line + "\n", style="yellow")
+        # Detect event type and pick icon + style
+        if "PWNED" in line or "pwned" in line or "WRITE_PWNED" in line:
+            icon = "⚡"
+            style = "bold red"
+        elif "BLOCKED" in line or "ATTACK BLOCKED" in line:
+            icon = "🛡"
+            style = "bold green"
+        elif "rejected" in line.lower() or "denied" in line.lower() or "DENY" in line:
+            icon = "✗"
+            style = "bold yellow"
+        elif "POLICY" in line or "policy" in line.lower():
+            icon = "🛡"
+            style = "green"
+        elif "[trusted]" in line:
+            icon = "✓"
+            style = "green"
+        elif "[untrusted]" in line:
+            icon = "⚠"
+            style = "yellow"
+        elif "[LLM]" in line or "thinking" in line.lower() or "calling" in line.lower():
+            icon = "◌"
+            style = "dim cyan"
+        elif line.startswith("==="):
+            icon = "»"
+            style = "bold magenta"
         else:
-            text.append(line + "\n", style="white")
+            icon = "·"
+            style = "white"
+
+        text.append(f" {icon} ", style=style)
+        text.append(line + "\n", style=style)
+
     return Panel(text, title="[bold cyan]Live Output[/bold cyan]", border_style="cyan")
 
 
@@ -183,6 +249,7 @@ def build_layout(
     layout = Layout()
     layout.split_column(
         Layout(name="header", size=3),
+        Layout(name="progress", size=5),
         Layout(name="body"),
     )
     layout["body"].split_row(
@@ -190,6 +257,7 @@ def build_layout(
         Layout(name="output", ratio=7),
     )
     layout["header"].update(Panel(build_status_bar(attack_state), border_style="dim"))
+    layout["progress"].update(build_progress_panel(agent_states, attack_state))
     layout["chain"].update(build_agent_chain_panel(agent_states))
     layout["output"].update(build_output_panel(output_lines))
     return layout

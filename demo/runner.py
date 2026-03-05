@@ -220,6 +220,7 @@ class Runner:
             "FIXTURE_CONTENT:\n"
             f"{fixture_content}"
         )
+        logger.llm_thinking("SummarizerAgent")
         summary_note = llm.complete(summarize_prompt)
         llm_meta = getattr(llm, "last_meta", {})
         logger.log_llm_call("summarize", summarize_prompt, summary_note, model=llm_meta.get("model", ""))
@@ -496,6 +497,7 @@ class Runner:
             f"POLICY_DECISION: {decision.decision}\n"
             f"CONTEXT_JSON: {model_to_json(context_pack)}\n"
         )
+        logger.llm_thinking("PlannerAgent")
         plan_raw = llm.complete(plan_prompt, max_tokens=400)
         llm_meta = getattr(llm, "last_meta", {})
         logger.log_llm_call("plan", plan_prompt, plan_raw, model=llm_meta.get("model", ""))
@@ -652,7 +654,7 @@ class Runner:
             if "obfuscation:" in result.get("message", ""):
                 parts = result["message"].split("obfuscation:")
                 if len(parts) > 1:
-                    obfuscation_method = parts[1].strip().rstrip(")")
+                    obfuscation_method = parts[1].strip().split(",")[0].rstrip(")")
         else:
             exec_message = "Execution blocked by policy gate"
         logger.step(
@@ -768,6 +770,7 @@ class Runner:
             f"POLICY_DECISION_JSON:\n{model_to_json(decision)}\n"
             f"TOOL_CALLS_JSON:\n{json.dumps(tool_calls)}\n"
         )
+        logger.llm_thinking("ForensicsAgent")
         forensics_note = llm.complete(forensics_prompt, max_tokens=256)
         llm_meta = getattr(llm, "last_meta", {})
         logger.log_llm_call("forensics", forensics_prompt, forensics_note, model=llm_meta.get("model", ""))
@@ -802,6 +805,7 @@ class Runner:
             f"POLICY_DECISION: {decision.decision}\n"
             f"PLAN_TARGET: {plan.target}\n"
         )
+        logger.llm_thinking("ForensicsAgent")
         rca_text = llm.complete(rca_prompt, max_tokens=300)
         logger.log_llm_call("rca", rca_prompt, rca_text, model=getattr(llm, "last_meta", {}).get("model", ""))
         rca_path = os.path.join(run_dir, "rca.md")
@@ -824,6 +828,7 @@ class Runner:
             decision=decision,
             plan=plan,
             tool_calls=tool_calls,
+            mode=self.mode,
         )
         incident_path = os.path.join(run_dir, "incident_report.md")
         with open(incident_path, "w", encoding="utf-8") as handle:
@@ -1010,6 +1015,7 @@ class Runner:
         decision: Any,
         plan: ActionPlan,
         tool_calls: List[Dict[str, Any]],
+        mode: str = "vulnerable",
     ) -> str:
         artifacts: List[str] = []
         for call in tool_calls:
@@ -1025,7 +1031,7 @@ class Runner:
             "# Incident Report",
             "",
             f"- Run ID: {run_id}",
-            "- Mode: vulnerable",
+            f"- Mode: {mode}",
             f"- Fixture: {os.path.basename(fixture_path)}",
             f"- Memory record: id={record.id}, trust={record.trust_level}, provenance={record.provenance}",
             "",

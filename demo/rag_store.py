@@ -119,6 +119,7 @@ class RAGMemoryStore:
         provenance: str,
         risk_flags: List[str],
         created_at: str,
+        taint_chain: Optional[List[str]] = None,
     ) -> MemoryRecord:
         return self.ingest(
             content=content,

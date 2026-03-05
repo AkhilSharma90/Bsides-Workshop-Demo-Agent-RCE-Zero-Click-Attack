@@ -25,6 +25,7 @@ class MemoryTool:
         provenance: str,
         risk_flags: List[str],
         created_at: str,
+        taint_chain: Optional[List[str]] = None,
     ) -> MemoryRecord:
         return self.store.write_note(
             content=content,
@@ -33,6 +34,7 @@ class MemoryTool:
             provenance=provenance,
             risk_flags=risk_flags,
             created_at=created_at,
+            taint_chain=taint_chain,
         )
 
     def query_notes(self, topic: str, limit: int = 3) -> List[MemoryRecord]:
